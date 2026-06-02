@@ -536,6 +536,67 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: var(--text-main);
             background: rgba(255, 255, 255, 0.03);
         }}
+
+        .range-btn {{
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid transparent;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            font-weight: 600;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }}
+
+        .range-btn.active-range {{
+            background: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            border-color: rgba(99, 102, 241, 0.4);
+        }}
+
+        .range-btn:hover:not(.active-range) {{
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.03);
+        }}
+
+        .date-filter-wrapper {{
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 0.15rem 0.4rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }}
+
+        .date-filter-wrapper:focus-within {{
+            border-color: rgba(99, 102, 241, 0.4);
+            background: rgba(99, 102, 241, 0.02);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.1);
+        }}
+
+        .date-filter-input {{
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            outline: none;
+            cursor: pointer;
+        }}
+
+        .date-filter-input::-webkit-calendar-picker-indicator {{
+            filter: invert(1);
+            opacity: 0.6;
+            cursor: pointer;
+        }}
+
+        .date-filter-input::-webkit-calendar-picker-indicator:hover {{
+            opacity: 1;
+        }}
     </style>
 </head>
 <body>
@@ -865,6 +926,105 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             }}
         }}
 
+        function filterChartRange(projId, days) {{
+            const accordionItem = document.querySelector(`.accordion-item[data-project-id="${{projId}}"]`);
+            if (accordionItem) {{
+                accordionItem.querySelectorAll('.range-btn').forEach(btn => {{
+                    btn.classList.remove('active-range');
+                }});
+            }}
+            
+            if (event && event.currentTarget) {{
+                event.currentTarget.classList.add('active-range');
+            }}
+            
+            const origData = dailyChartData[projId];
+            if (!origData) return;
+            
+            let filteredDates = [...origData.dates];
+            if (days !== 'all') {{
+                const numDays = parseInt(days, 10);
+                filteredDates = filteredDates.slice(-numDays);
+            }}
+            
+            const startInput = document.getElementById(`date-start-${{projId}}`);
+            const endInput = document.getElementById(`date-end-${{projId}}`);
+            if (startInput && endInput) {{
+                startInput.value = filteredDates[0] || '';
+                endInput.value = filteredDates[filteredDates.length - 1] || '';
+            }}
+            
+            updateProjectChartData(projId, filteredDates);
+        }}
+
+        function customDateFilter(projId) {{
+            const startInput = document.getElementById(`date-start-${{projId}}`);
+            const endInput = document.getElementById(`date-end-${{projId}}`);
+            if (!startInput || !endInput) return;
+            
+            const startDate = startInput.value;
+            const endDate = endInput.value;
+            
+            const origData = dailyChartData[projId];
+            if (!origData) return;
+            
+            const accordionItem = document.querySelector(`.accordion-item[data-project-id="${{projId}}"]`);
+            if (accordionItem) {{
+                accordionItem.querySelectorAll('.range-btn').forEach(btn => {{
+                    btn.classList.remove('active-range');
+                }});
+            }}
+            
+            const filteredDates = origData.dates.filter(d => {{
+                if (startDate && d < startDate) return false;
+                if (endDate && d > endDate) return false;
+                return true;
+            }});
+            
+            updateProjectChartData(projId, filteredDates);
+        }}
+
+        function updateProjectChartData(projId, filteredDates) {{
+            const origData = dailyChartData[projId];
+            if (!origData) return;
+            
+            const dateIndices = filteredDates.map(d => origData.dates.indexOf(d)).filter(idx => idx !== -1);
+            
+            const filterDataset = (origDatasets) => {{
+                return origDatasets.map(dataset => {{
+                    const filteredData = dateIndices.map(idx => dataset.data[idx]);
+                    return {{
+                        label: dataset.label,
+                        data: filteredData
+                    }};
+                }});
+            }};
+            
+            const sChart = renderedCharts[projId + '_service'];
+            if (sChart) {{
+                sChart.data.labels = filteredDates;
+                const newDatasets = filterDataset(origData.services);
+                sChart.data.datasets.forEach((ds, dIdx) => {{
+                    if (newDatasets[dIdx]) {{
+                        ds.data = newDatasets[dIdx].data;
+                    }}
+                }});
+                sChart.update();
+            }}
+            
+            const skuChart = renderedCharts[projId + '_sku'];
+            if (skuChart) {{
+                skuChart.data.labels = filteredDates;
+                const newDatasets = filterDataset(origData.skus);
+                skuChart.data.datasets.forEach((ds, dIdx) => {{
+                    if (newDatasets[dIdx]) {{
+                        ds.data = newDatasets[dIdx].data;
+                    }}
+                }});
+                skuChart.update();
+            }}
+        }}
+
         function initProjectCharts(projId) {{
             if (renderedCharts[projId]) return;
             const data = dailyChartData[projId];
@@ -950,6 +1110,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         }}
                     }}
                 }});
+            }}
+            
+            // Pre-populate date inputs limits and defaults
+            const startInput = document.getElementById(`date-start-${{projId}}`);
+            const endInput = document.getElementById(`date-end-${{projId}}`);
+            if (startInput && endInput && data.dates.length > 0) {{
+                const minDate = data.dates[0];
+                const maxDate = data.dates[data.dates.length - 1];
+                
+                startInput.min = minDate;
+                startInput.max = maxDate;
+                startInput.value = minDate;
+                
+                endInput.min = minDate;
+                endInput.max = maxDate;
+                endInput.value = maxDate;
             }}
             
             renderedCharts[projId] = true;
@@ -1571,14 +1747,30 @@ def main():
                 {resources_html}
                 
                 <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
                         <b style="font-size: 1rem; color: #cbd5e1; display: flex; align-items: center; gap: 0.5rem;">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="var(--primary)"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-                            Daily Spending Snapshot (Past 60 Days)
+                            Daily Spending Snapshot
                         </b>
-                        <div style="display: flex; gap: 0.5rem; background: rgba(255,255,255,0.05); padding: 0.2rem; border-radius: 6px; border: 1px solid var(--border-color);">
-                            <button class="tab-btn active" onclick="switchProjTab(event, '{proj_id}', 'service')">Services</button>
-                            <button class="tab-btn" onclick="switchProjTab(event, '{proj_id}', 'sku')">SKUs</button>
+                        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                            <!-- Range Presets -->
+                            <div style="display: flex; gap: 0.25rem; background: rgba(255,255,255,0.03); padding: 0.15rem; border-radius: 6px; border: 1px solid var(--border-color);">
+                                <button class="range-btn" onclick="filterChartRange('{proj_id}', 7)">7D</button>
+                                <button class="range-btn" onclick="filterChartRange('{proj_id}', 14)">14D</button>
+                                <button class="range-btn" onclick="filterChartRange('{proj_id}', 30)">30D</button>
+                                <button class="range-btn active-range" onclick="filterChartRange('{proj_id}', 'all')">All</button>
+                            </div>
+                            <!-- Custom Date Pickers -->
+                            <div class="date-filter-wrapper">
+                                <input type="date" id="date-start-{proj_id}" class="date-filter-input" onchange="customDateFilter('{proj_id}')">
+                                <span style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">to</span>
+                                <input type="date" id="date-end-{proj_id}" class="date-filter-input" onchange="customDateFilter('{proj_id}')">
+                            </div>
+                            <!-- Services / SKUs Tabs -->
+                            <div style="display: flex; gap: 0.25rem; background: rgba(255,255,255,0.05); padding: 0.15rem; border-radius: 6px; border: 1px solid var(--border-color);">
+                                <button class="tab-btn active" onclick="switchProjTab(event, '{proj_id}', 'service')">Services</button>
+                                <button class="tab-btn" onclick="switchProjTab(event, '{proj_id}', 'sku')">SKUs</button>
+                            </div>
                         </div>
                     </div>
                     
