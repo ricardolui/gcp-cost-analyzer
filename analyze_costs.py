@@ -15,6 +15,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <title>GCP Cost Analysis Dashboard - {month_formatted}</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
         :root {{
             --bg-color: #0b0f19;
@@ -1002,6 +1003,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             
             const sChart = renderedCharts[projId + '_service'];
             if (sChart) {{
+                if (typeof sChart.resetZoom === 'function') {{
+                    sChart.resetZoom('none');
+                }}
                 sChart.data.labels = filteredDates;
                 const newDatasets = filterDataset(origData.services);
                 sChart.data.datasets.forEach((ds, dIdx) => {{
@@ -1014,6 +1018,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             
             const skuChart = renderedCharts[projId + '_sku'];
             if (skuChart) {{
+                if (typeof skuChart.resetZoom === 'function') {{
+                    skuChart.resetZoom('none');
+                }}
                 skuChart.data.labels = filteredDates;
                 const newDatasets = filterDataset(origData.skus);
                 skuChart.data.datasets.forEach((ds, dIdx) => {{
@@ -1022,6 +1029,48 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     }}
                 }});
                 skuChart.update();
+            }}
+        }}
+
+        let isSyncingZoom = false;
+        function syncDateFiltersFromChart(projId, chart) {{
+            if (isSyncingZoom) return;
+            isSyncingZoom = true;
+            
+            try {{
+                const xAxis = chart.scales.x;
+                if (!xAxis) return;
+                
+                const minIdx = Math.max(0, Math.round(xAxis.min));
+                const maxIdx = Math.min(chart.data.labels.length - 1, Math.round(xAxis.max));
+                const startDate = chart.data.labels[minIdx];
+                const endDate = chart.data.labels[maxIdx];
+                
+                const startInput = document.getElementById(`date-start-${{projId}}`);
+                const endInput = document.getElementById(`date-end-${{projId}}`);
+                if (startInput && endInput) {{
+                    startInput.value = startDate || '';
+                    endInput.value = endDate || '';
+                }}
+                
+                const accordionItem = document.querySelector(`.accordion-item[data-project-id="${{projId}}"]`);
+                if (accordionItem) {{
+                    accordionItem.querySelectorAll('.range-btn').forEach(btn => {{
+                        btn.classList.remove('active-range');
+                    }});
+                }}
+
+                // Sync the other daily chart zoom to match!
+                const isService = chart.canvas.id.includes('service');
+                const otherChartKey = projId + (isService ? '_sku' : '_service');
+                const otherChart = renderedCharts[otherChartKey];
+                if (otherChart && otherChart.scales.x) {{
+                    otherChart.scales.x.options.min = xAxis.min;
+                    otherChart.scales.x.options.max = xAxis.max;
+                    otherChart.update('none');
+                }}
+            }} finally {{
+                isSyncingZoom = false;
             }}
         }}
 
@@ -1061,6 +1110,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             tooltip: {{
                                 mode: 'index',
                                 intersect: false
+                            }},
+                            zoom: {{
+                                zoom: {{
+                                    drag: {{
+                                        enabled: true,
+                                        backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                                        borderColor: 'rgba(99, 102, 241, 0.4)',
+                                        borderWidth: 1,
+                                        threshold: 3
+                                    }},
+                                    mode: 'x',
+                                    onZoomComplete: function({{chart}}) {{
+                                        syncDateFiltersFromChart(projId, chart);
+                                    }}
+                                }}
                             }}
                         }},
                         scales: {{
@@ -1068,6 +1132,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             y: {{ grid: {{ color: 'rgba(255, 255, 255, 0.03)' }}, ticks: {{ color: '#9ca3af', font: {{ family: 'JetBrains Mono', size: 9 }} }} }}
                         }}
                     }}
+                }});
+                
+                sCanvas.addEventListener('dblclick', () => {{
+                    filterChartRange(projId, 'all');
                 }});
             }}
             
@@ -1102,6 +1170,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             tooltip: {{
                                 mode: 'index',
                                 intersect: false
+                            }},
+                            zoom: {{
+                                zoom: {{
+                                    drag: {{
+                                        enabled: true,
+                                        backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                                        borderColor: 'rgba(99, 102, 241, 0.4)',
+                                        borderWidth: 1,
+                                        threshold: 3
+                                    }},
+                                    mode: 'x',
+                                    onZoomComplete: function({{chart}}) {{
+                                        syncDateFiltersFromChart(projId, chart);
+                                    }}
+                                }}
                             }}
                         }},
                         scales: {{
@@ -1109,6 +1192,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             y: {{ grid: {{ color: 'rgba(255, 255, 255, 0.03)' }}, ticks: {{ color: '#9ca3af', font: {{ family: 'JetBrains Mono', size: 9 }} }} }}
                         }}
                     }}
+                }});
+                
+                skuCanvas.addEventListener('dblclick', () => {{
+                    filterChartRange(projId, 'all');
                 }});
             }}
             
