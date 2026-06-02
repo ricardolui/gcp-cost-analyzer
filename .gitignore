@@ -1,0 +1,31 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments and dependencies
+.venv/
+venv/
+ENV/
+env/
+requirements-dev.txt
+
+# Environment variables & secrets
+.env
+.env.*
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Project-specific outputs (protect billing data from being committed)
+gcp_cost_dashboard.html
+GCP_Cost_Analysis_*.md
+*.log
+analyze_costs_backup.py
+
+# IDE / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
