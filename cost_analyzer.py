@@ -574,12 +574,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: white;
         }}
         
-        .tab-btn:hover:not(.active) {
+        .tab-btn:hover:not(.active) {{
             color: var(--text-main);
             background: rgba(255, 255, 255, 0.03);
-        }
+        }}
 
-        .range-btn {
+        .range-btn {{
             background: transparent;
             color: var(--text-muted);
             border: 1px solid transparent;
@@ -590,20 +590,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-weight: 600;
             font-family: inherit;
             transition: all 0.2s ease;
-        }
+        }}
 
-        .range-btn.active-range {
+        .range-btn.active-range {{
             background: rgba(99, 102, 241, 0.15);
             color: #a5b4fc;
             border-color: rgba(99, 102, 241, 0.4);
-        }
+        }}
 
-        .range-btn:hover:not(.active-range) {
+        .range-btn:hover:not(.active-range) {{
             color: var(--text-main);
             background: rgba(255, 255, 255, 0.03);
-        }
+        }}
 
-        .date-filter-wrapper {
+        .date-filter-wrapper {{
             display: flex;
             align-items: center;
             gap: 0.25rem;
@@ -612,15 +612,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-radius: 6px;
             border: 1px solid var(--border-color);
             transition: all 0.2s ease;
-        }
+        }}
 
-        .date-filter-wrapper:focus-within {
+        .date-filter-wrapper:focus-within {{
             border-color: rgba(99, 102, 241, 0.4);
             background: rgba(99, 102, 241, 0.02);
             box-shadow: 0 0 10px rgba(99, 102, 241, 0.1);
-        }
+        }}
 
-        .date-filter-input {
+        .date-filter-input {{
             background: transparent;
             border: none;
             color: var(--text-main);
@@ -628,17 +628,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-size: 0.75rem;
             outline: none;
             cursor: pointer;
-        }
+        }}
 
-        .date-filter-input::-webkit-calendar-picker-indicator {
+        .date-filter-input::-webkit-calendar-picker-indicator {{
             filter: invert(1);
             opacity: 0.6;
             cursor: pointer;
-        }
+        }}
 
-        .date-filter-input::-webkit-calendar-picker-indicator:hover {
+        .date-filter-input::-webkit-calendar-picker-indicator:hover {{
             opacity: 1;
-        }
+        }}
     </style>
 </head>
 <body>
