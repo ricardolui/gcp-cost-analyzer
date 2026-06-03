@@ -168,6 +168,21 @@ Configure a **Cloud Scheduler** job to trigger cache regeneration automatically:
 
 ---
 
+## 🧭 Dashboard Views & Filters
+
+The dashboard is a single-page app with a **left sidebar** that switches between four views (the active view is remembered in the URL hash):
+
+| View | Contents |
+|---|---|
+| **Overview** | A **period summary band** (analyzed month, covered date range, days with spend, daily average, projected month-end run-rate, and Δ vs the previous month) plus the headline metric cards, project/service share doughnuts, the month-over-month trend, and cost-optimization insights. |
+| **Spending Tracker** | A full-width **daily spend** chart with a **7-day moving-average** overlay; range presets (7/14/30/60 days), custom start/end dates, and **drag-to-zoom**; stat cards (period total, daily average, peak day, 30-day run-rate); and a **Top Movers** list (last 7 days vs the prior 7 days). |
+| **Projects** | The per-project **deep-dive accordions** (daily charts per project) with a live project filter. |
+| **Services & SKUs** | The Top-25 SKU table with **live search** and a **project filter**. |
+
+All views, filters, the tracker, and the summary are computed **client-side** from the data already embedded in the page — no extra BigQuery queries — so everything stays instant and works from the cached HTML. The layout collapses the sidebar into a horizontal bar on small screens.
+
+---
+
 ## 🎨 Dashboard Design Aesthetics
 
 The interface follows a clean **Google Material 3 light theme**, aligned with the companion [talent-scraper](https://github.com/duboc/talent-scraper) project:

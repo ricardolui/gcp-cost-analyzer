@@ -57,6 +57,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             -webkit-font-smoothing: antialiased;
             padding: 2.5rem;
             padding-top: calc(56px + 2.5rem);
+            padding-left: calc(240px + 2.5rem);
         }}
 
         .container {{
@@ -664,6 +665,142 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .date-filter-input::-webkit-calendar-picker-indicator:hover {{
             opacity: 1;
         }}
+
+        /* ===== App shell: sidebar + tabbed views ===== */
+        .sidebar {{
+            position: fixed;
+            top: 56px;
+            left: 0;
+            bottom: 0;
+            width: 240px;
+            background: var(--surface-white);
+            border-right: 1px solid var(--border-color);
+            padding: 1rem 0.75rem;
+            overflow-y: auto;
+            z-index: 90;
+        }}
+        .sidebar-nav {{ display: flex; flex-direction: column; gap: 0.25rem; }}
+        .nav-item {{
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            width: 100%;
+            padding: 0.7rem 1rem;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 0 9999px 9999px 0;
+            transition: background 0.15s ease, color 0.15s ease;
+            text-align: left;
+        }}
+        .nav-item svg {{ flex-shrink: 0; }}
+        .nav-item:hover {{ background: var(--surface-container); color: var(--text-main); }}
+        .nav-item.active {{ background: var(--primary-glow); color: var(--primary); }}
+
+        /* Tab views */
+        .tab-view {{ display: none; }}
+        .tab-view.active {{ display: block; animation: fadeIn 0.2s ease; }}
+        @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(4px); }} to {{ opacity: 1; transform: none; }} }}
+
+        /* Filters */
+        .filter-bar {{ display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }}
+        .filter-select {{
+            background: var(--surface-white);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            padding: 0.45rem 0.75rem;
+            border-radius: 9999px;
+            cursor: pointer;
+            outline: none;
+        }}
+        .filter-select:focus {{ border-color: var(--primary); }}
+        .range-group {{ display: flex; gap: 0.25rem; background: var(--surface-container); padding: 0.2rem; border-radius: 9999px; }}
+        .search-input {{
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: var(--surface-white);
+            border: 1px solid var(--border-color);
+            border-radius: 9999px;
+            padding: 0.4rem 0.85rem;
+            min-width: 220px;
+        }}
+        .search-input:focus-within {{ border-color: var(--primary); }}
+        .search-input input {{ border: none; outline: none; background: transparent; font-family: var(--font-body); font-size: 0.8rem; color: var(--text-main); width: 100%; }}
+
+        /* Period summary band */
+        .summary-band {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }}
+        .summary-card {{
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1.1rem 1.25rem;
+            box-shadow: var(--shadow-sm);
+        }}
+        .summary-label {{ font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 600; }}
+        .summary-value {{ font-family: var(--font-mono); font-size: 1.5rem; font-weight: 700; color: var(--text-main); margin-top: 0.35rem; }}
+        .summary-sub {{ font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem; }}
+
+        /* Tracker stat cards */
+        .tracker-stats {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }}
+        .stat-card {{
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1rem 1.15rem;
+            box-shadow: var(--shadow-sm);
+        }}
+        .stat-card .summary-value {{ font-size: 1.3rem; }}
+        .delta-up {{ color: var(--accent-red); }}
+        .delta-down {{ color: var(--accent-green); }}
+
+        /* Top movers */
+        .movers-list {{ display: flex; flex-direction: column; gap: 0.5rem; }}
+        .mover-row {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.6rem 0.85rem;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 0.85rem;
+        }}
+        .mover-row .mover-name {{ color: var(--text-main); font-weight: 600; }}
+        .mover-delta {{ font-family: var(--font-mono); font-weight: 700; }}
+
+        /* Sidebar -> horizontal bar on small screens */
+        @media (max-width: 900px) {{
+            .sidebar {{
+                top: 56px;
+                width: 100%;
+                bottom: auto;
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 0.4rem 0.5rem;
+            }}
+            .sidebar-nav {{ flex-direction: row; overflow-x: auto; gap: 0.25rem; }}
+            .nav-item {{ border-radius: 9999px; padding: 0.5rem 0.85rem; white-space: nowrap; }}
+            .nav-item span {{ font-size: 0.8rem; }}
+            body {{ padding-left: 1rem; padding-top: calc(56px + 54px + 1rem); }}
+        }}
+
     </style>
 </head>
 <body>
@@ -683,6 +820,57 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 Active Config: {config_name}
             </div>
         </header>
+
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-view="overview" onclick="switchView('overview')">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                    <span>Overview</span>
+                </button>
+                <button class="nav-item" data-view="tracker" onclick="switchView('tracker')">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+                    <span>Spending Tracker</span>
+                </button>
+                <button class="nav-item" data-view="projects" onclick="switchView('projects')">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                    <span>Projects</span>
+                </button>
+                <button class="nav-item" data-view="services" onclick="switchView('services')">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 13h12v-2H3v2zm0 4h12v-2H3v2zm0-8h12V7H3v2zm14 8h2v-4h2v-2h-2V9h-2v4h-2v2h2v4z"/></svg>
+                    <span>Services &amp; SKUs</span>
+                </button>
+            </nav>
+        </aside>
+
+
+        <section id="view-overview" class="tab-view active">
+        <div class="summary-band">
+            <div class="summary-card">
+                <div class="summary-label">Analyzed period</div>
+                <div class="summary-value" id="sumPeriod">&mdash;</div>
+                <div class="summary-sub" id="sumRange">&mdash;</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Days with spend</div>
+                <div class="summary-value" id="sumDays">&mdash;</div>
+                <div class="summary-sub">in selected month</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Daily average</div>
+                <div class="summary-value" id="sumAvg">&mdash;</div>
+                <div class="summary-sub">net cost / active day</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Projected month-end</div>
+                <div class="summary-value" id="sumProjected">&mdash;</div>
+                <div class="summary-sub" id="sumProjectedSub">run-rate estimate</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">vs previous month</div>
+                <div class="summary-value" id="sumMoM">&mdash;</div>
+                <div class="summary-sub" id="sumMoMSub">net cost change</div>
+            </div>
+        </div>
 
         <!-- Metrics Grid -->
         <div class="metrics-grid">
@@ -785,6 +973,57 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
         </div>
 
+        </section>
+
+        <section id="view-tracker" class="tab-view">
+        <div class="panel" style="margin-bottom: 1.5rem;">
+            <div class="panel-header" style="flex-wrap: wrap; gap: 1rem;">
+                <div class="panel-title">
+                    <svg viewBox="0 0 24 24"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+                    Daily Spending Tracker
+                </div>
+                <div class="filter-bar">
+                    <select class="filter-select" id="trackerProject" onchange="updateTracker()">
+                        <option value="__all__">All projects</option>
+                    </select>
+                    <div class="range-group">
+                        <button class="range-btn" onclick="trackerRange(7, this)">7D</button>
+                        <button class="range-btn" onclick="trackerRange(14, this)">14D</button>
+                        <button class="range-btn" onclick="trackerRange(30, this)">30D</button>
+                        <button class="range-btn active-range" onclick="trackerRange(60, this)">60D</button>
+                    </div>
+                    <div class="date-filter-wrapper">
+                        <input type="date" class="date-filter-input" id="trackerStart" onchange="trackerCustom()">
+                        <span style="color: var(--text-muted); font-size: 0.7rem;">to</span>
+                        <input type="date" class="date-filter-input" id="trackerEnd" onchange="trackerCustom()">
+                    </div>
+                </div>
+            </div>
+            <div style="position: relative; height: 360px;">
+                <canvas id="trackerChart"></canvas>
+            </div>
+        </div>
+
+        <div class="tracker-stats" id="trackerStats"></div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <svg viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
+                    Top Movers &mdash; last 7 days vs prior 7 days
+                </div>
+            </div>
+            <div class="movers-list" id="moversList"></div>
+        </div>
+        </section>
+
+        <section id="view-projects" class="tab-view">
+        <div class="filter-bar" style="margin-bottom: 1.5rem;">
+            <div class="search-input">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--text-muted)"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <input type="text" id="projectSearch" placeholder="Filter projects by name or ID&hellip;" oninput="filterProjects()">
+            </div>
+        </div>
         <!-- Row 3: Project Detail Breakdown (Expandable Accordions) -->
         <div class="panel" style="margin-bottom: 2.5rem;">
             <div class="panel-header">
@@ -800,6 +1039,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
         </div>
 
+        </section>
+
+        <section id="view-services" class="tab-view">
+        <div class="filter-bar" style="margin-bottom: 1.5rem;">
+            <select class="filter-select" id="skuProject" onchange="filterSkuTable()">
+                <option value="__all__">All projects</option>
+            </select>
+            <div class="search-input">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--text-muted)"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <input type="text" id="skuSearch" placeholder="Search service, SKU or project&hellip;" oninput="filterSkuTable()">
+            </div>
+        </div>
         <!-- Row 4: Top 25 SKU Detailed Table -->
         <div class="panel">
             <div class="panel-header">
@@ -825,6 +1076,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </table>
             </div>
         </div>
+        </section>
     </div>
 
     <script>
@@ -958,6 +1210,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }});
 
         const dailyChartData = {daily_chart_data_json};
+        const trendLabels = {trend_labels_json};
+        const trendCosts = {trend_costs_json};
+        const netCostTotal = {net_cost};
         let renderedCharts = {{}};
         const chartColors = [
             '#4285f4', '#34a853', '#fbbc04', '#ea4335', '#1a73e8',
@@ -1302,6 +1557,286 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 }}
             }}
         }}
+
+        // ===== Tabbed views =====
+        function switchView(view) {{
+            document.querySelectorAll('.tab-view').forEach(function(s) {{ s.classList.remove('active'); }});
+            var target = document.getElementById('view-' + view);
+            if (target) target.classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(function(b) {{
+                b.classList.toggle('active', b.getAttribute('data-view') === view);
+            }});
+            if (view === 'tracker') {{
+                if (!window.__trackerInit) {{ window.__trackerInit = true; initTracker(); }}
+                else if (window.trackerChart) {{ window.trackerChart.resize(); }}
+            }}
+            if (history.replaceState) history.replaceState(null, '', '#' + view);
+            window.scrollTo(0, 0);
+        }}
+
+        // ===== Spending tracker (derived from dailyChartData) =====
+        var trackerFull = null;
+        function trackerProjects() {{ return Object.keys(dailyChartData); }}
+        function trackerDatesAll() {{
+            var keys = trackerProjects();
+            if (!keys.length) return [];
+            return dailyChartData[keys[0]].dates || [];
+        }}
+        function buildTotals(projId) {{
+            var keys = (projId && projId !== '__all__') ? [projId] : trackerProjects();
+            var dates = trackerDatesAll();
+            var totals = new Array(dates.length).fill(0);
+            keys.forEach(function(k) {{
+                var proj = dailyChartData[k];
+                if (!proj || !proj.services) return;
+                proj.services.forEach(function(ds) {{
+                    (ds.data || []).forEach(function(v, i) {{ totals[i] += (v || 0); }});
+                }});
+            }});
+            return {{ dates: dates, totals: totals }};
+        }}
+        function movingAvg(arr, win) {{
+            var out = [];
+            for (var i = 0; i < arr.length; i++) {{
+                var s = 0, c = 0;
+                for (var j = Math.max(0, i - win + 1); j <= i; j++) {{ s += arr[j]; c++; }}
+                out.push(c ? s / c : 0);
+            }}
+            return out;
+        }}
+        function fmtMoney(v) {{
+            return '$' + Number(v).toLocaleString(undefined, {{ minimumFractionDigits: 2, maximumFractionDigits: 2 }});
+        }}
+        function populateProjectSelects() {{
+            var projects = trackerProjects();
+            ['trackerProject', 'skuProject'].forEach(function(id) {{
+                var sel = document.getElementById(id);
+                if (!sel) return;
+                projects.forEach(function(p) {{
+                    var o = document.createElement('option');
+                    o.value = p; o.textContent = p; sel.appendChild(o);
+                }});
+            }});
+        }}
+        function initTracker() {{
+            trackerFull = buildTotals('__all__');
+            var ctx = document.getElementById('trackerChart');
+            if (!ctx || typeof Chart === 'undefined') return;
+            window.trackerChart = new Chart(ctx, {{
+                type: 'line',
+                data: {{
+                    labels: trackerFull.dates,
+                    datasets: [
+                        {{ label: 'Daily net cost', data: trackerFull.totals, borderColor: '#1a73e8',
+                          backgroundColor: 'rgba(26, 115, 232, 0.12)', fill: true, tension: 0.35,
+                          pointRadius: 0, borderWidth: 2 }},
+                        {{ label: '7-day average', data: movingAvg(trackerFull.totals, 7), borderColor: '#f9ab00',
+                          backgroundColor: 'transparent', fill: false, tension: 0.35, pointRadius: 0,
+                          borderWidth: 2, borderDash: [6, 4] }}
+                    ]
+                }},
+                options: {{
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: {{ mode: 'index', intersect: false }},
+                    plugins: {{
+                        legend: {{ labels: {{ color: '#5f6368', font: {{ family: 'Inter', size: 11 }}, usePointStyle: true }} }},
+                        zoom: {{ zoom: {{ drag: {{ enabled: true, backgroundColor: 'rgba(26,115,232,0.15)' }}, mode: 'x',
+                                onZoomComplete: function(c) {{ syncTrackerZoom(c.chart); }} }} }}
+                    }},
+                    scales: {{
+                        x: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'Inter', size: 9 }}, maxTicksLimit: 12 }} }},
+                        y: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'JetBrains Mono', size: 9 }},
+                             callback: function(v) {{ return '$' + Number(v).toLocaleString(); }} }} }}
+                    }}
+                }}
+            }});
+            ctx.addEventListener('dblclick', function() {{ if (window.trackerChart) window.trackerChart.resetZoom(); }});
+            renderTrackerStats(trackerFull.dates, trackerFull.totals);
+            renderTopMovers('__all__');
+        }}
+        function refreshTrackerChart(slice) {{
+            if (!window.trackerChart) return;
+            window.trackerChart.data.labels = slice.dates;
+            window.trackerChart.data.datasets[0].data = slice.totals;
+            window.trackerChart.data.datasets[1].data = movingAvg(slice.totals, 7);
+            window.trackerChart.resetZoom('none');
+            window.trackerChart.update();
+            renderTrackerStats(slice.dates, slice.totals);
+        }}
+        function currentTrackerSlice() {{
+            var all = trackerFull;
+            var s = document.getElementById('trackerStart').value;
+            var e = document.getElementById('trackerEnd').value;
+            if (!s || !e) return all;
+            var d = [], t = [];
+            all.dates.forEach(function(dt, i) {{ if (dt >= s && dt <= e) {{ d.push(dt); t.push(all.totals[i]); }} }});
+            return {{ dates: d, totals: t }};
+        }}
+        function updateTracker() {{
+            var proj = document.getElementById('trackerProject').value;
+            trackerFull = buildTotals(proj);
+            document.getElementById('trackerStart').value = '';
+            document.getElementById('trackerEnd').value = '';
+            document.querySelectorAll('#view-tracker .range-btn').forEach(function(b) {{ b.classList.remove('active-range'); }});
+            refreshTrackerChart(trackerFull);
+            renderTopMovers(proj);
+        }}
+        function trackerRange(days, btn) {{
+            document.querySelectorAll('#view-tracker .range-btn').forEach(function(b) {{ b.classList.remove('active-range'); }});
+            if (btn) btn.classList.add('active-range');
+            var all = trackerFull;
+            var slice = all;
+            if (days && all.dates.length > days) {{
+                slice = {{ dates: all.dates.slice(-days), totals: all.totals.slice(-days) }};
+            }}
+            if (slice.dates.length) {{
+                document.getElementById('trackerStart').value = slice.dates[0];
+                document.getElementById('trackerEnd').value = slice.dates[slice.dates.length - 1];
+            }}
+            refreshTrackerChart(slice);
+        }}
+        function trackerCustom() {{
+            document.querySelectorAll('#view-tracker .range-btn').forEach(function(b) {{ b.classList.remove('active-range'); }});
+            refreshTrackerChart(currentTrackerSlice());
+        }}
+        function syncTrackerZoom(chart) {{
+            var xs = chart.scales.x;
+            var labels = chart.data.labels;
+            var lo = Math.max(0, Math.ceil(xs.min));
+            var hi = Math.min(labels.length - 1, Math.floor(xs.max));
+            if (labels[lo]) document.getElementById('trackerStart').value = labels[lo];
+            if (labels[hi]) document.getElementById('trackerEnd').value = labels[hi];
+        }}
+        function renderTrackerStats(dates, totals) {{
+            var el = document.getElementById('trackerStats');
+            if (!el) return;
+            var sum = totals.reduce(function(a, b) {{ return a + b; }}, 0);
+            var active = totals.filter(function(v) {{ return v > 0; }}).length;
+            var avg = active ? sum / active : 0;
+            var peak = 0, peakIdx = -1;
+            totals.forEach(function(v, i) {{ if (v > peak) {{ peak = v; peakIdx = i; }} }});
+            var peakDate = peakIdx >= 0 ? dates[peakIdx] : '\u2014';
+            var cards = [
+                ['Total (range)', fmtMoney(sum), dates.length + ' days'],
+                ['Daily average', fmtMoney(avg), active + ' active days'],
+                ['Peak day', fmtMoney(peak), peakDate],
+                ['Run-rate / 30d', fmtMoney(avg * 30), 'avg x 30 days']
+            ];
+            el.innerHTML = cards.map(function(c) {{
+                return '<div class="stat-card"><div class="summary-label">' + c[0] + '</div>' +
+                       '<div class="summary-value">' + c[1] + '</div>' +
+                       '<div class="summary-sub">' + c[2] + '</div></div>';
+            }}).join('');
+        }}
+        function renderTopMovers(projId) {{
+            var el = document.getElementById('moversList');
+            if (!el) return;
+            var keys = (projId && projId !== '__all__') ? [projId] : trackerProjects();
+            var agg = {{}};
+            keys.forEach(function(k) {{
+                var proj = dailyChartData[k];
+                if (!proj || !proj.services) return;
+                var n = (proj.dates || []).length;
+                proj.services.forEach(function(ds) {{
+                    var data = ds.data || [];
+                    var recent = 0, prior = 0, i;
+                    for (i = Math.max(0, n - 7); i < n; i++) recent += (data[i] || 0);
+                    for (i = Math.max(0, n - 14); i < n - 7; i++) prior += (data[i] || 0);
+                    if (!agg[ds.label]) agg[ds.label] = {{ recent: 0, prior: 0 }};
+                    agg[ds.label].recent += recent;
+                    agg[ds.label].prior += prior;
+                }});
+            }});
+            var rows = Object.keys(agg).map(function(name) {{
+                return {{ name: name, delta: agg[name].recent - agg[name].prior }};
+            }}).filter(function(r) {{ return Math.abs(r.delta) > 0.005; }});
+            rows.sort(function(a, b) {{ return Math.abs(b.delta) - Math.abs(a.delta); }});
+            var top = rows.slice(0, 6);
+            if (!top.length) {{ el.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem;">Not enough history for movers.</div>'; return; }}
+            el.innerHTML = top.map(function(r) {{
+                var up = r.delta > 0;
+                var cls = up ? 'delta-up' : 'delta-down';
+                var sign = up ? '\u25b2 +' : '\u25bc -';
+                return '<div class="mover-row"><span class="mover-name">' + r.name + '</span>' +
+                       '<span class="mover-delta ' + cls + '">' + sign + fmtMoney(Math.abs(r.delta)).slice(1) + '</span></div>';
+            }}).join('');
+        }}
+
+        // ===== Period summary band (Overview) =====
+        function renderSummaryBand() {{
+            var keys = Object.keys(dailyChartData);
+            if (!keys.length) return;
+            var dates = dailyChartData[keys[0]].dates || [];
+            if (!dates.length) return;
+            var lastDate = dates[dates.length - 1];
+            var ym = lastDate.slice(0, 7);
+            var totals = buildTotals('__all__').totals;
+            var monthSum = 0, activeDays = 0, firstD = null, lastD = null;
+            dates.forEach(function(dt, i) {{
+                if (dt.slice(0, 7) === ym) {{
+                    monthSum += totals[i];
+                    if (totals[i] > 0) {{ activeDays++; if (!firstD) firstD = dt; lastD = dt; }}
+                }}
+            }});
+            var dim = new Date(parseInt(ym.slice(0, 4)), parseInt(ym.slice(5, 7)), 0).getDate();
+            var avg = activeDays ? monthSum / activeDays : 0;
+            var projected = avg * dim;
+            function setT(id, v) {{ var e = document.getElementById(id); if (e) e.textContent = v; }}
+            var monthName = new Date(ym + '-01T00:00:00').toLocaleDateString(undefined, {{ month: 'long', year: 'numeric' }});
+            setT('sumPeriod', monthName);
+            setT('sumRange', (firstD || dates[0]) + '  to  ' + (lastD || lastDate));
+            setT('sumDays', activeDays + ' / ' + dim);
+            setT('sumAvg', fmtMoney(avg));
+            setT('sumProjected', fmtMoney(projected));
+            if (typeof trendCosts !== 'undefined' && trendCosts.length >= 2) {{
+                var cur = trendCosts[trendCosts.length - 1];
+                var prev = trendCosts[trendCosts.length - 2];
+                var e2 = document.getElementById('sumMoM');
+                if (prev > 0 && e2) {{
+                    var pct = ((cur - prev) / prev) * 100;
+                    var up = pct >= 0;
+                    e2.textContent = (up ? '+' : '') + pct.toFixed(1) + '%';
+                    e2.className = 'summary-value ' + (up ? 'delta-up' : 'delta-down');
+                    setT('sumMoMSub', 'vs ' + (trendLabels[trendLabels.length - 2] || 'previous'));
+                }}
+            }}
+            var projSub = document.getElementById('sumProjectedSub');
+            if (projSub && activeDays >= dim) projSub.textContent = 'month complete (actual)';
+        }}
+
+        // ===== Filters =====
+        function filterSkuTable() {{
+            var projSel = document.getElementById('skuProject');
+            var proj = projSel ? projSel.value : '__all__';
+            var sInput = document.getElementById('skuSearch');
+            var q = (sInput ? sInput.value : '').toLowerCase();
+            var rows = document.querySelectorAll('#view-services tbody tr');
+            rows.forEach(function(tr) {{
+                var cells = tr.querySelectorAll('td');
+                var projId = cells.length ? cells[0].textContent.trim() : '';
+                var text = tr.textContent.toLowerCase();
+                var okProj = (proj === '__all__') || (projId === proj);
+                var okText = !q || text.indexOf(q) !== -1;
+                tr.style.display = (okProj && okText) ? '' : 'none';
+            }});
+        }}
+        function filterProjects() {{
+            var sInput = document.getElementById('projectSearch');
+            var q = (sInput ? sInput.value : '').toLowerCase();
+            document.querySelectorAll('#view-projects .accordion-item').forEach(function(item) {{
+                var text = item.textContent.toLowerCase();
+                item.style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+            }});
+        }}
+
+        // ===== Init on load =====
+        document.addEventListener('DOMContentLoaded', function() {{
+            populateProjectSelects();
+            renderSummaryBand();
+            var hash = (location.hash || '').replace('#', '');
+            if (hash && document.getElementById('view-' + hash)) switchView(hash);
+        }});
+
     </script>
 </body>
 </html>
