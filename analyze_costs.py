@@ -4,7 +4,7 @@ import subprocess
 import sys
 import os
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Define color themes and style assets for HTML report
 HTML_TEMPLATE = """<!DOCTYPE html>
@@ -13,23 +13,34 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GCP Cost Analysis Dashboard - {month_formatted}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
         :root {{
-            --bg-color: #0b0f19;
-            --panel-bg: rgba(22, 28, 45, 0.4);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --primary: #6366f1;
-            --primary-glow: rgba(99, 102, 241, 0.15);
-            --accent-green: #10b981;
-            --accent-green-glow: rgba(16, 185, 129, 0.1);
-            --accent-red: #ef4444;
-            --accent-red-glow: rgba(239, 68, 68, 0.1);
-            --text-main: #f3f4f6;
-            --text-muted: #9ca3af;
-            --card-header-bg: rgba(30, 41, 59, 0.7);
+            --bg-color: #f8f9fa;
+            --surface-white: #ffffff;
+            --panel-bg: #ffffff;
+            --surface-container: #f1f3f4;
+            --surface-container-high: #e8eaed;
+            --border-color: #dadce0;
+            --border-strong: #c1c6d6;
+            --primary: #1a73e8;
+            --primary-strong: #1557b0;
+            --primary-glow: rgba(26, 115, 232, 0.10);
+            --accent-green: #1e8e3e;
+            --accent-green-glow: rgba(30, 142, 62, 0.10);
+            --accent-red: #d93025;
+            --accent-red-glow: rgba(217, 48, 37, 0.10);
+            --accent-yellow: #f9ab00;
+            --text-main: #202124;
+            --text-muted: #5f6368;
+            --card-header-bg: #f8f9fa;
+            --shadow-sm: 0 1px 2px rgba(60,64,67,0.08), 0 1px 3px rgba(60,64,67,0.10);
+            --shadow-md: 0 1px 3px rgba(60,64,67,0.12), 0 6px 16px rgba(60,64,67,0.10);
+            --font-head: 'Hanken Grotesk', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
         }}
 
         * {{
@@ -39,16 +50,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         body {{
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: var(--font-body);
             background-color: var(--bg-color);
             color: var(--text-main);
             min-height: 100vh;
-            background-image: 
-                radial-gradient(at 10% 10%, rgba(99, 102, 241, 0.1) 0px, transparent 40%),
-                radial-gradient(at 90% 10%, rgba(16, 185, 129, 0.05) 0px, transparent 40%),
-                radial-gradient(at 50% 90%, rgba(239, 68, 68, 0.05) 0px, transparent 50%);
-            background-attachment: fixed;
+            -webkit-font-smoothing: antialiased;
             padding: 2.5rem;
+            padding-top: calc(56px + 2.5rem);
         }}
 
         .container {{
@@ -56,62 +64,116 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             margin: 0 auto;
         }}
 
+        /* Fixed top navbar (talent-scraper style) */
         header {{
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            height: 56px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2.5rem;
+            padding: 0 1.5rem;
+            background: var(--surface-white);
             border-bottom: 1px solid var(--border-color);
-            padding-bottom: 1.5rem;
         }}
 
         .logo-area {{
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 0.85rem;
         }}
 
         .logo-icon {{
-            background: linear-gradient(135deg, var(--primary), #818cf8);
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
+            background: var(--primary);
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 20px var(--primary-glow);
+            flex-shrink: 0;
         }}
 
         .logo-icon svg {{
             fill: white;
-            width: 24px;
-            height: 24px;
+            width: 20px;
+            height: 20px;
         }}
 
         .title-group h1 {{
-            font-size: 1.75rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #ffffff 60%, #cbd5e1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-family: var(--font-head);
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1.2;
         }}
 
         .title-group p {{
             color: var(--text-muted);
-            font-size: 0.875rem;
-            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            margin-top: 0.05rem;
         }}
 
-        .gcloud-badge {{
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border-color);
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
+        .header-controls {{
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }}
+
+        .refresh-btn {{
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1.1rem;
+            border-radius: 9999px;
+            font-weight: 600;
             font-size: 0.85rem;
+            cursor: pointer;
+            font-family: inherit;
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            font-family: 'JetBrains Mono', monospace;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s ease;
+        }}
+
+        .refresh-btn:hover {{
+            background: var(--primary-strong);
+            box-shadow: var(--shadow-md);
+        }}
+
+        .refresh-btn:active {{
+            transform: translateY(1px);
+        }}
+
+        .refresh-btn.loading {{
+            opacity: 0.7;
+            cursor: not-allowed;
+        }}
+
+        .refresh-btn.loading svg {{
+            animation: spin 1s linear infinite;
+        }}
+
+        @keyframes spin {{
+            0% {{ transform: rotate(0deg); }}
+            100% {{ transform: rotate(360deg); }}
+        }}
+
+        .gcloud-badge {{
+            background: var(--surface-container);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-family: var(--font-mono);
         }}
 
         .badge-dot {{
@@ -119,7 +181,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             height: 8px;
             background-color: var(--accent-green);
             border-radius: 50%;
-            box-shadow: 0 0 10px var(--accent-green);
         }}
 
         /* Metrics Grid */
@@ -132,18 +193,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .metric-card {{
             background: var(--panel-bg);
-            backdrop-filter: blur(16px);
             border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 1.5rem;
             position: relative;
             overflow: hidden;
-            transition: transform 0.3s ease, border-color 0.3s ease;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }}
 
         .metric-card:hover {{
             transform: translateY(-2px);
-            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: var(--shadow-md);
         }}
 
         .metric-card::before {{
@@ -156,7 +217,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .metric-card.net-cost::before {{ background: var(--primary); }}
-        .metric-card.gross-cost::before {{ background: #818cf8; }}
+        .metric-card.gross-cost::before {{ background: #4285f4; }}
         .metric-card.credits::before {{ background: var(--accent-green); }}
 
         .metric-label {{
@@ -168,17 +229,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .metric-val {{
             font-size: 2.25rem;
-            font-weight: 800;
-            font-family: 'JetBrains Mono', monospace;
-            background: #ffffff;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--text-main);
         }}
 
         .metric-val.green {{
-            background: linear-gradient(135deg, #34d399, #059669);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--accent-green);
         }}
 
         .metric-subtext {{
@@ -202,19 +259,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             grid-template-columns: 1fr 1fr;
         }}
 
-        .row-full {{
-            grid-template-columns: 1fr;
-        }}
-
         .panel {{
             background: var(--panel-bg);
-            backdrop-filter: blur(16px);
             border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 1.75rem;
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            box-shadow: var(--shadow-sm);
         }}
 
         .panel-header {{
@@ -225,8 +278,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .panel-title {{
+            font-family: var(--font-head);
             font-size: 1.15rem;
             font-weight: 700;
+            color: var(--text-main);
             display: flex;
             align-items: center;
             gap: 0.5rem;
@@ -266,7 +321,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             background-color: var(--card-header-bg);
             padding: 0.85rem 1rem;
             font-weight: 600;
-            color: #cbd5e1;
+            color: var(--text-muted);
             border-bottom: 1px solid var(--border-color);
             position: sticky;
             top: 0;
@@ -276,8 +331,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         td {{
             padding: 0.85rem 1rem;
             border-bottom: 1px solid var(--border-color);
-            color: #cbd5e1;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: var(--text-main);
+            font-family: var(--font-body);
         }}
 
         tr:last-child td {{
@@ -285,21 +340,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         tr:hover td {{
-            background-color: rgba(255, 255, 255, 0.02);
+            background-color: var(--surface-container);
         }}
 
         .num-col {{
             text-align: right;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
         }}
 
         .mono-text {{
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 0.8rem;
         }}
 
         .pct-bar-bg {{
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--surface-container-high);
             width: 100px;
             height: 6px;
             border-radius: 3px;
@@ -324,15 +379,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .pill-primary {{
-            background: rgba(99, 102, 241, 0.15);
-            color: #a5b4fc;
-            border: 1px solid rgba(99, 102, 241, 0.3);
+            background: var(--primary-glow);
+            color: var(--primary);
+            border: 1px solid rgba(26, 115, 232, 0.30);
         }}
 
         .pill-green {{
-            background: rgba(16, 185, 129, 0.15);
-            color: #6ee7b7;
-            border: 1px solid rgba(16, 185, 129, 0.3);
+            background: var(--accent-green-glow);
+            color: var(--accent-green);
+            border: 1px solid rgba(30, 142, 62, 0.30);
         }}
 
         /* Recommendations Panel */
@@ -343,17 +398,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .rec-item {{
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--surface-white);
             border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 1.25rem;
             display: flex;
             gap: 1rem;
-            transition: border-color 0.3s ease;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }}
 
         .rec-item:hover {{
-            border-color: rgba(255, 255, 255, 0.12);
+            border-color: var(--border-strong);
+            box-shadow: var(--shadow-sm);
         }}
 
         .rec-icon-box {{
@@ -369,18 +425,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .rec-icon-box.warning {{
             background: var(--accent-red-glow);
             color: var(--accent-red);
-            border: 1px solid rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(217, 48, 37, 0.20);
         }}
 
         .rec-icon-box.info {{
             background: var(--primary-glow);
             color: var(--primary);
-            border: 1px solid rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(26, 115, 232, 0.20);
         }}
 
         .rec-content h4 {{
+            font-family: var(--font-head);
             font-size: 0.95rem;
             font-weight: 700;
+            color: var(--text-main);
             margin-bottom: 0.25rem;
         }}
 
@@ -395,7 +453,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-size: 0.8rem;
             font-weight: 600;
             color: var(--accent-green);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             background: var(--accent-green-glow);
             padding: 0.15rem 0.5rem;
             border-radius: 4px;
@@ -411,15 +469,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .accordion-item {{
-            background: rgba(255, 255, 255, 0.015);
+            background: var(--surface-white);
             border: 1px solid var(--border-color);
             border-radius: 12px;
             overflow: hidden;
-            transition: border-color 0.3s ease;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }}
 
         .accordion-item:hover {{
-            border-color: rgba(255, 255, 255, 0.1);
+            border-color: var(--border-strong);
+            box-shadow: var(--shadow-sm);
         }}
 
         .accordion-trigger {{
@@ -438,11 +497,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .project-rank {{
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 0.9rem;
             font-weight: 700;
             color: var(--text-muted);
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--surface-container);
             width: 24px;
             height: 24px;
             border-radius: 6px;
@@ -452,8 +511,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .project-info-title {{
+            font-family: var(--font-head);
             font-weight: 700;
             font-size: 1rem;
+            color: var(--text-main);
         }}
 
         .project-info-meta {{
@@ -469,13 +530,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .project-accordion-cost {{
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-weight: 700;
             font-size: 1.1rem;
+            color: var(--text-main);
         }}
 
         .chevron-icon {{
             transition: transform 0.3s ease;
+            color: var(--text-muted);
         }}
 
         .accordion-item.active .chevron-icon {{
@@ -486,7 +549,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease, padding 0.3s ease;
-            background: rgba(0, 0, 0, 0.2);
+            background: var(--surface-container);
             border-top: 1px solid transparent;
         }}
 
@@ -512,6 +575,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             }}
             body {{
                 padding: 1rem;
+                padding-top: calc(56px + 1rem);
+            }}
+            .title-group p {{
+                display: none;
             }}
         }}
 
@@ -532,10 +599,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             background: var(--primary);
             color: white;
         }}
-        
+
         .tab-btn:hover:not(.active) {{
             color: var(--text-main);
-            background: rgba(255, 255, 255, 0.03);
+            background: var(--surface-container);
         }}
 
         .range-btn {{
@@ -552,21 +619,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .range-btn.active-range {{
-            background: rgba(99, 102, 241, 0.15);
-            color: #a5b4fc;
-            border-color: rgba(99, 102, 241, 0.4);
+            background: var(--primary-glow);
+            color: var(--primary);
+            border-color: rgba(26, 115, 232, 0.40);
         }}
 
         .range-btn:hover:not(.active-range) {{
             color: var(--text-main);
-            background: rgba(255, 255, 255, 0.03);
+            background: var(--surface-container);
         }}
 
         .date-filter-wrapper {{
             display: flex;
             align-items: center;
             gap: 0.25rem;
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--surface-container);
             padding: 0.15rem 0.4rem;
             border-radius: 6px;
             border: 1px solid var(--border-color);
@@ -574,23 +641,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .date-filter-wrapper:focus-within {{
-            border-color: rgba(99, 102, 241, 0.4);
-            background: rgba(99, 102, 241, 0.02);
-            box-shadow: 0 0 10px rgba(99, 102, 241, 0.1);
+            border-color: rgba(26, 115, 232, 0.40);
+            background: var(--primary-glow);
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.10);
         }}
 
         .date-filter-input {{
             background: transparent;
             border: none;
             color: var(--text-main);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 0.75rem;
             outline: none;
             cursor: pointer;
         }}
 
         .date-filter-input::-webkit-calendar-picker-indicator {{
-            filter: invert(1);
             opacity: 0.6;
             cursor: pointer;
         }}
@@ -739,7 +805,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="panel-header">
                 <div class="panel-title">
                     <svg viewBox="0 0 24 24"><path d="M3 13h12v-2H3v2zm0 4h12v-2H3v2zm0-8h12V7H3v2zm14 8h2v-4h2v-2h-2V9h-2v4h-2v2h2v4z"/></svg>
-                    Top 25 Billing SKUs (May 2026)
+                    Top 25 Billing SKUs ({month_formatted})
                 </div>
             </div>
             <div class="table-scroll">
@@ -772,13 +838,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     datasets: [{{
                         data: {project_costs_json},
                         backgroundColor: [
-                            '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff',
-                            '#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#ecfdf5',
-                            '#f59e0b', '#fbbf24', '#fcd34d', '#fef3c7', '#fffbeb',
-                            '#ef4444', '#f87171', '#fca5a5', '#fee2e2', '#fef2f2'
+                            '#1a73e8', '#4285f4', '#669df6', '#8ab4f8', '#aecbfa',
+                            '#1e8e3e', '#34a853', '#5bb974', '#81c995', '#a8dab5',
+                            '#f9ab00', '#fbbc04', '#fcc934', '#fdd663', '#fde293',
+                            '#d93025', '#ea4335', '#ee675c', '#f28b82', '#f6aea9'
                         ],
                         borderWidth: 1,
-                        borderColor: '#0b0f19'
+                        borderColor: '#ffffff'
                     }}]
                 }},
                 options: {{
@@ -788,9 +854,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         legend: {{
                             position: 'right',
                             labels: {{
-                                color: '#9ca3af',
+                                color: '#5f6368',
                                 font: {{
-                                    family: 'Plus Jakarta Sans',
+                                    family: 'Inter',
                                     size: 11
                                 }},
                                 boxWidth: 12,
@@ -809,12 +875,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     datasets: [{{
                         data: {service_costs_json},
                         backgroundColor: [
-                            '#34d399', '#6366f1', '#fbbf24', '#ef4444', '#a7f3d0',
-                            '#a5b4fc', '#fcd34d', '#fca5a5', '#818cf8', '#10b981',
-                            '#f59e0b', '#059669', '#cbd5e1', '#94a3b8', '#64748b'
+                            '#4285f4', '#34a853', '#fbbc04', '#ea4335', '#1a73e8',
+                            '#1e8e3e', '#f9ab00', '#d93025', '#669df6', '#5bb974',
+                            '#fcc934', '#ee675c', '#80868b', '#9aa0a6', '#5f6368'
                         ],
                         borderWidth: 1,
-                        borderColor: '#0b0f19'
+                        borderColor: '#ffffff'
                     }}]
                 }},
                 options: {{
@@ -824,9 +890,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         legend: {{
                             position: 'right',
                             labels: {{
-                                color: '#9ca3af',
+                                color: '#5f6368',
                                 font: {{
-                                    family: 'Plus Jakarta Sans',
+                                    family: 'Inter',
                                     size: 11
                                 }},
                                 boxWidth: 12,
@@ -845,10 +911,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     datasets: [{{
                         label: 'Net Monthly Cost ($)',
                         data: {trend_costs_json},
-                        borderColor: '#6366f1',
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderColor: '#1a73e8',
+                        backgroundColor: 'rgba(26, 115, 232, 0.12)',
                         borderWidth: 3,
-                        pointBackgroundColor: '#6366f1',
+                        pointBackgroundColor: '#1a73e8',
                         pointBorderColor: '#ffffff',
                         pointHoverRadius: 6,
                         fill: true,
@@ -866,21 +932,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     scales: {{
                         x: {{
                             grid: {{
-                                color: 'rgba(255, 255, 255, 0.05)'
+                                color: 'rgba(60, 64, 67, 0.12)'
                             }},
                             ticks: {{
-                                color: '#9ca3af',
+                                color: '#5f6368',
                                 font: {{
-                                    family: 'Plus Jakarta Sans'
+                                    family: 'Inter'
                                 }}
                             }}
                         }},
                         y: {{
                             grid: {{
-                                color: 'rgba(255, 255, 255, 0.05)'
+                                color: 'rgba(60, 64, 67, 0.12)'
                             }},
                             ticks: {{
-                                color: '#9ca3af',
+                                color: '#5f6368',
                                 font: {{
                                     family: 'JetBrains Mono'
                                 }}
@@ -894,8 +960,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const dailyChartData = {daily_chart_data_json};
         let renderedCharts = {{}};
         const chartColors = [
-            '#6366f1', '#10b981', '#fbbf24', '#ef4444', '#a5b4fc',
-            '#34d399', '#f59e0b', '#f87171', '#818cf8', '#6ee7b7'
+            '#4285f4', '#34a853', '#fbbc04', '#ea4335', '#1a73e8',
+            '#1e8e3e', '#f9ab00', '#d93025', '#669df6', '#5bb974'
         ];
 
         function getChartColor(idx, alpha = 1) {{
@@ -1105,7 +1171,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         plugins: {{
                             legend: {{
                                 position: 'top',
-                                labels: {{ color: '#9ca3af', font: {{ family: 'Plus Jakarta Sans', size: 10 }} }}
+                                labels: {{ color: '#5f6368', font: {{ family: 'Inter', size: 10 }} }}
                             }},
                             tooltip: {{
                                 mode: 'index',
@@ -1128,8 +1194,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             }}
                         }},
                         scales: {{
-                            x: {{ grid: {{ color: 'rgba(255, 255, 255, 0.03)' }}, ticks: {{ color: '#9ca3af', font: {{ family: 'Plus Jakarta Sans', size: 9 }} }} }},
-                            y: {{ grid: {{ color: 'rgba(255, 255, 255, 0.03)' }}, ticks: {{ color: '#9ca3af', font: {{ family: 'JetBrains Mono', size: 9 }} }} }}
+                            x: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'Inter', size: 9 }} }} }},
+                            y: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'JetBrains Mono', size: 9 }} }} }}
                         }}
                     }}
                 }});
@@ -1165,7 +1231,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         plugins: {{
                             legend: {{
                                 position: 'top',
-                                labels: {{ color: '#9ca3af', font: {{ family: 'Plus Jakarta Sans', size: 10 }} }}
+                                labels: {{ color: '#5f6368', font: {{ family: 'Inter', size: 10 }} }}
                             }},
                             tooltip: {{
                                 mode: 'index',
@@ -1188,8 +1254,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             }}
                         }},
                         scales: {{
-                            x: {{ grid: {{ color: 'rgba(255, 255, 255, 0.03)' }}, ticks: {{ color: '#9ca3af', font: {{ family: 'Plus Jakarta Sans', size: 9 }} }} }},
-                            y: {{ grid: {{ color: 'rgba(255, 255, 255, 0.03)' }}, ticks: {{ color: '#9ca3af', font: {{ family: 'JetBrains Mono', size: 9 }} }} }}
+                            x: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'Inter', size: 9 }} }} }},
+                            y: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'JetBrains Mono', size: 9 }} }} }}
                         }}
                     }}
                 }});
@@ -1355,7 +1421,7 @@ def main():
     parser = argparse.ArgumentParser(description="GCP Billing & Cost Analyzer Dashboard Generator")
     parser.add_argument("--project", "-p", help="GCP Project ID where the BigQuery billing dataset resides (defaults to active gcloud project)")
     parser.add_argument("--dataset", "-d", default="billing_exports", help="BigQuery billing export dataset name (default: billing_exports)")
-    parser.add_argument("--month", "-m", help="Invoice month in YYYYMM format (defaults to May 2026 / current month)")
+    parser.add_argument("--month", "-m", help="Invoice month in YYYYMM format (defaults to the most recent month with billing data)")
     parser.add_argument("--output-dir", "-o", default=".", help="Directory to save generated dashboards (default: current directory)")
     args = parser.parse_args()
 
@@ -1408,10 +1474,14 @@ def main():
         elif name.startswith('gcp_billing_export_v1_'):
             standard_table = f"{project_id}.{dataset_name}.{name}"
             
-    if not standard_table:
-        print(f"❌ Error: Standard billing export table not found in dataset `{dataset_name}`!", file=sys.stderr)
+    if not standard_table and not resource_table:
+        print(f"❌ Error: No billing export tables found in dataset `{project_id}.{dataset_name}`!", file=sys.stderr)
         sys.exit(1)
-        
+
+    if not standard_table:
+        print(f"⚠️ Warning: Standard billing export table not found. Using resource-level table for aggregate queries.")
+        standard_table = resource_table
+
     if not resource_table:
         print(f"⚠️ Warning: Resource-level billing export table not found. Defaulting to standard table for resources.")
         resource_table = standard_table
@@ -1423,11 +1493,18 @@ def main():
     if args.month:
         current_month = args.month
     else:
-        # Default to previous month or current calendar month.
-        # To stay fully compatible with May 2026 dataset:
-        current_month = datetime.now().strftime("%Y%m")
-        if current_month == "202606" or current_month == "202605":
-            current_month = "202605"
+        # Default to the most recent month that actually has invoice data.
+        # Fall back to the previous calendar month if the lookup returns nothing.
+        print("🔍 Detecting most recent invoice month with billing data...")
+        latest_month_rows = run_bq_query(
+            f"SELECT DISTINCT invoice.month AS month FROM `{standard_table}` "
+            f"ORDER BY month DESC LIMIT 1"
+        )
+        if latest_month_rows and latest_month_rows[0].get('month'):
+            current_month = latest_month_rows[0]['month']
+        else:
+            prev_month = datetime.now().replace(day=1) - timedelta(days=1)
+            current_month = prev_month.strftime("%Y%m")
             
     try:
         current_month_dt = datetime.strptime(current_month, "%Y%m")
@@ -1529,8 +1606,20 @@ def main():
     """
     resource_data = run_bq_query(resource_query)
     
+    # Dynamically derive the 60-day daily window ending on the last day of the
+    # analyzed month (mirrors the web app), so the dashboard is not tied to any
+    # fixed calendar period.
+    if current_month_dt.month == 12:
+        next_month_start = datetime(current_month_dt.year + 1, 1, 1)
+    else:
+        next_month_start = datetime(current_month_dt.year, current_month_dt.month + 1, 1)
+    window_end_dt = (next_month_start - timedelta(days=1)).date()
+    window_start_dt = window_end_dt - timedelta(days=60)
+    window_start_iso = window_start_dt.strftime("%Y-%m-%d")
+    window_end_iso = window_end_dt.strftime("%Y-%m-%d")
+
     # Query 7: Daily Service Cost (last 60 days)
-    print("📊 Querying daily service costs for past 60 days...")
+    print(f"📊 Querying daily service costs from {window_start_iso} to {window_end_iso}...")
     daily_service_query = f"""
     SELECT
       COALESCE(project.id, 'Non-project / Shared') as project_id,
@@ -1538,15 +1627,15 @@ def main():
       EXTRACT(DATE FROM usage_start_time) as usage_date,
       SUM(cost + (SELECT COALESCE(SUM(c.amount), 0) FROM UNNEST(credits) c)) as net_cost
     FROM `{standard_table}`
-    WHERE usage_start_time >= TIMESTAMP('2026-04-01 00:00:00')
-      AND usage_start_time < TIMESTAMP('2026-06-01 00:00:00')
+    WHERE usage_start_time >= TIMESTAMP('{window_start_iso} 00:00:00')
+      AND usage_start_time <= TIMESTAMP('{window_end_iso} 23:59:59')
     GROUP BY 1, 2, 3
     ORDER BY usage_date ASC
     """
     daily_service_data = run_bq_query(daily_service_query)
-    
+
     # Query 8: Daily SKU Cost (last 60 days)
-    print("📊 Querying daily SKU costs for past 60 days...")
+    print(f"📊 Querying daily SKU costs from {window_start_iso} to {window_end_iso}...")
     daily_sku_query = f"""
     SELECT
       COALESCE(project.id, 'Non-project / Shared') as project_id,
@@ -1554,8 +1643,8 @@ def main():
       EXTRACT(DATE FROM usage_start_time) as usage_date,
       SUM(cost + (SELECT COALESCE(SUM(c.amount), 0) FROM UNNEST(credits) c)) as net_cost
     FROM `{standard_table}`
-    WHERE usage_start_time >= TIMESTAMP('2026-04-01 00:00:00')
-      AND usage_start_time < TIMESTAMP('2026-06-01 00:00:00')
+    WHERE usage_start_time >= TIMESTAMP('{window_start_iso} 00:00:00')
+      AND usage_start_time <= TIMESTAMP('{window_end_iso} 23:59:59')
     GROUP BY 1, 2, 3
     ORDER BY usage_date ASC
     """
@@ -1583,7 +1672,7 @@ def main():
     
     print("📈 Data gathered successfully. Processing records & calculating metrics...")
     
-    # Calculate main metrics for May 2026
+    # Calculate main metrics for the analyzed month
     current_trend = [t for t in trend_data if t['invoice_month'] == current_month]
     if current_trend:
         gross_cost = current_trend[0]['total_cost']
@@ -1643,16 +1732,14 @@ def main():
         """)
         
     # -------------------------------------------------------------
-    # Process Daily Spend Data for past 60 days (Apr 1 - May 31, 2026)
+    # Process Daily Spend Data for the dynamically computed 60-day window
+    # (matches the start/end used in the daily BigQuery queries above).
     # -------------------------------------------------------------
-    import datetime as dt_mod
-    start_dt = dt_mod.date(2026, 4, 1)
-    end_dt = dt_mod.date(2026, 5, 31)
     date_list = []
-    curr_dt = start_dt
-    while curr_dt <= end_dt:
+    curr_dt = window_start_dt
+    while curr_dt <= window_end_dt:
         date_list.append(curr_dt.strftime("%Y-%m-%d"))
-        curr_dt += dt_mod.timedelta(days=1)
+        curr_dt += timedelta(days=1)
 
     # Structure service daily data: project_id -> service_desc -> date -> cost
     daily_service_map = {}
@@ -1797,7 +1884,7 @@ def main():
                 r_share = (r['net_cost'] / proj_cost * 100) if proj_cost > 0 else 0
                 resources_html += f"""
                 <div style="display: flex; justify-content: space-between; font-size: 0.8rem; padding: 0.2rem 0; font-family: 'JetBrains Mono', monospace;">
-                    <span style="color: #6ee7b7; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 400px;" title="{r['resource_name']}">{r['resource_name'].split('/')[-1]}</span>
+                    <span style="color: var(--accent-green); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 400px;" title="{r['resource_name']}">{r['resource_name'].split('/')[-1]}</span>
                     <span style="color: var(--text-muted);">{r['service_description'].split(' ')[0]}</span>
                     <span>${r['net_cost']:,.2f} ({r_share:.1f}%)</span>
                 </div>
@@ -1835,7 +1922,7 @@ def main():
                 
                 <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
-                        <b style="font-size: 1rem; color: #cbd5e1; display: flex; align-items: center; gap: 0.5rem;">
+                        <b style="font-size: 1rem; color: var(--text-main); display: flex; align-items: center; gap: 0.5rem;">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="var(--primary)"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
                             Daily Spending Snapshot
                         </b>
