@@ -11,7 +11,7 @@ Additionally, it provides a clean, fully compiled Markdown report suitable for e
 - **Double-Engine Versatility:** 
   1. **Zero-Dependency CLI (`analyze_costs.py`):** Runs instantly using only the Python standard library and delegates BigQuery queries to your local `bq` CLI tool. No `pip install` required!
   2. **Production Web Application (`main.py`):** Powered by FastAPI and the official `google-cloud-bigquery` library, designed to be deployed to Google Cloud Run with single-click SSO (IAP) integration.
-- **Visual Excellence:** Generates a premium dark-themed, responsive dashboard featuring Glassmorphism styling, hover-triggered micro-animations, and animated interactive charts (powered by Chart.js).
+- **Visual Excellence:** Generates a clean, responsive dashboard in a Google Material 3 light theme (Hanken Grotesk + Inter), featuring white surface cards, hover micro-animations, and animated interactive charts (powered by Chart.js).
 - **60-Day Drilldowns:** Expand any project card to view an interactive daily spending snapshot over the last 60 days, filterable by individual GCP Service or Billing SKU.
 - **Resource-Level Attribution:** pinpoints individual cloud resources (VMs, Cloud SQL databases, Cloud Storage buckets) driving your expenditures.
 - **Auto-Refresh Ready:** Standard endpoints support Cloud Scheduler cron-jobs to automatically refresh cached data daily.
@@ -110,35 +110,55 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Start Uvicorn developer server
+# Point the app at your billing export, then start Uvicorn.
+# GCP_PROJECT  = project holding the BigQuery billing export
+# GCP_DATASET  = billing export dataset name (whatever you named it; often singular)
+export GCP_PROJECT="my-billing-project"
+export GCP_DATASET="billing_export"
 uvicorn main:app --reload --host 127.0.0.1 --port 8080
 ```
-Open your browser and navigate to `http://127.0.0.1:8080` to interact with your dashboard.
+Open your browser and navigate to `http://127.0.0.1:8080` to interact with your dashboard. Authenticate locally with `gcloud auth application-default login` so the BigQuery client can read your billing data.
 
 ### Cloud Run Deployment
-Deploying to Google Cloud Run is fully automated. The application scales down to **zero instances** when idle, resulting in virtually **$0/month infrastructure cost**.
+Deployment is fully automated and **project-agnostic** — everything is configured via environment variables (or a `.env` file), so the same script works for anyone, in any project. The service scales to **zero instances** when idle, for virtually **$0/month infrastructure cost**.
 
-Run the deploy script:
 ```bash
-GCP_PROJECT_ID="your-gcp-project-id" GCP_REGION="us-central1" ./deploy.sh
+cp .env.example .env     # then edit .env with your project details
+./deploy.sh
 ```
 
-### 🔒 Enterprise Security & SSO Setup (Recommended)
-To prevent unauthorized access to your billing details, secure the deployed Cloud Run service using **Google Identity-Aware Proxy (IAP)**:
+`deploy.sh` enables the required APIs, creates a least-privilege runtime service account, grants it read access to your billing data (even in a **different project**), builds the image, deploys to Cloud Run, and — unless you opt out — turns on IAP.
 
-1. **Restrict Cloud Run Access:** Update the ingress of your service to only accept traffic from a load balancer:
-   ```bash
-   gcloud run services update gcp-cost-analyzer-app \
-     --ingress internal-and-cloud-load-balancing \
-     --region us-central1
-   ```
-2. **Deploy an Application Load Balancer:**
-   - Create a Serverless Network Endpoint Group (NEG) pointing to your `gcp-cost-analyzer-app` Cloud Run service.
-   - Deploy an external HTTPS Application Load Balancer (ALB) and add this Serverless NEG as its backend.
-3. **Enable Identity-Aware Proxy (IAP):**
-   - Turn on IAP on the ALB backend service.
-   - Grant the `roles/iap.httpsResourceAccessor` role to authorized users or groups.
-   - The web app automatically reads the IAP header `X-Goog-Authenticated-User-Email` to audit and log which user is viewing the dashboard!
+#### Configuration (`.env`)
+| Variable | Default | Description |
+|---|---|---|
+| `PROJECT_ID` | _(required)_ | Project the Cloud Run service is deployed to |
+| `BILLING_PROJECT_ID` | = `PROJECT_ID` | Project that holds the BigQuery billing export (set when it differs) |
+| `BILLING_DATASET` | `billing_export` | Billing export dataset name (as you named it in Billing → Billing export) |
+| `REGION` | `us-central1` | Cloud Run region |
+| `SERVICE_NAME` | `gcp-cost-analyzer-app` | Cloud Run service name |
+| `RUNTIME_SA_NAME` | `cost-analyzer-run` | Dedicated runtime service account (created in `PROJECT_ID`) |
+| `ENABLE_IAP` | `true` | `true` = private + IAP; `false` = public |
+| `IAP_MEMBERS` | _(empty)_ | Comma-separated principals granted access, e.g. `user:a@b.com,domain:example.com` |
+
+> [!NOTE]
+> **Cross-project billing** is fully supported. If your billing export lives in a separate project (common for org-wide billing), set `BILLING_PROJECT_ID` to that project. The deploy script grants the runtime service account `roles/bigquery.jobUser` + `roles/bigquery.dataViewer` there automatically. The web app reads `GCP_PROJECT` (billing project) and `GCP_DATASET` at runtime.
+
+### 🔒 Security & SSO via IAP (on by default)
+With `ENABLE_IAP=true`, the service is deployed **privately** (no public access) and secured with **direct Cloud Run Identity-Aware Proxy** — no load balancer, domain, or SSL certificate required. It keeps the `*.run.app` URL and enforces Google SSO on every request. The app reads the IAP header `X-Goog-Authenticated-User-Email` to display and log which user is viewing the dashboard.
+
+**Share access with people** (anytime, without redeploying) using `share.sh`:
+```bash
+./share.sh add    user:alice@example.com     # grant a person
+./share.sh add    group:finance@example.com  # grant a Google Group
+./share.sh add    domain:example.com         # grant an entire Workspace domain
+./share.sh remove user:alice@example.com     # revoke
+./share.sh list                              # see who has access
+```
+Principals can also be granted at deploy time via `IAP_MEMBERS` in `.env`. IAM changes take 1–3 minutes to propagate.
+
+> [!TIP]
+> Prefer the traditional external HTTPS Load Balancer + Serverless NEG + IAP setup (e.g. to serve on a custom domain)? Set `ENABLE_IAP=false`, set the service ingress to `internal-and-cloud-load-balancing`, and front it with an ALB that has IAP enabled on its backend service.
 
 ### 🔄 Automatic Daily Data Refreshes
 Configure a **Cloud Scheduler** job to trigger cache regeneration automatically:
@@ -148,13 +168,29 @@ Configure a **Cloud Scheduler** job to trigger cache regeneration automatically:
 
 ---
 
+## 🧭 Dashboard Views & Filters
+
+The dashboard is a single-page app with a **left sidebar** that switches between four views (the active view is remembered in the URL hash):
+
+| View | Contents |
+|---|---|
+| **Overview** | A **period summary band** (analyzed month, covered date range, days with spend, daily average, projected month-end run-rate, and Δ vs the previous month) plus the headline metric cards, project/service share doughnuts, the month-over-month trend, and cost-optimization insights. |
+| **Spending Tracker** | A full-width **daily spend** chart with a **7-day moving-average** overlay; range presets (7/14/30/60 days), custom start/end dates, and **drag-to-zoom**; stat cards (period total, daily average, peak day, 30-day run-rate); and a **Top Movers** list (last 7 days vs the prior 7 days). |
+| **Projects** | The per-project **deep-dive accordions** (daily charts per project) with a live project filter. |
+| **Services & SKUs** | The Top-25 SKU table with **live search** and a **project filter**. |
+
+All views, filters, the tracker, and the summary are computed **client-side** from the data already embedded in the page — no extra BigQuery queries — so everything stays instant and works from the cached HTML. The layout collapses the sidebar into a horizontal bar on small screens.
+
+---
+
 ## 🎨 Dashboard Design Aesthetics
 
-The interface is built utilizing premium design aesthetics to deliver a sleek visual feel:
-- **HSL Curated Palette:** Avoids harsh primitive colors. Employs deep obsidian and slate tones matched with vibrant emeralds and glowing indigos.
-- **Glassmorphism panels:** Subtle borders, backing blurs (`backdrop-filter`), and fine shadows make components pop.
-- **Micro-interactions:** Smooth scale and shadow transitions on button hover, element clicking, and card expansions.
-- **Responsive Layout:** Responsive flex grids adapt automatically across mobile screens, tablets, and wide desktop displays.
+The interface follows a clean **Google Material 3 light theme**, aligned with the companion [talent-scraper](https://github.com/duboc/talent-scraper) project:
+- **Material 3 palette:** A bright `#f8f9fa` canvas with white surfaces, a Google-blue (`#1a73e8`) primary, and Google brand accents (blue/green/yellow/red) used across charts.
+- **Typography:** **Hanken Grotesk** for headings, **Inter** for body text, and **JetBrains Mono** for figures — loaded from Google Fonts.
+- **Surfaces & elevation:** Solid white cards with hairline borders and soft Material shadows (no glassmorphism), plus a fixed top navbar.
+- **Micro-interactions:** Smooth hover/elevation transitions on buttons, cards, and accordion expansions.
+- **Responsive Layout:** Flex/grid layouts adapt automatically across mobile, tablet, and wide desktop displays.
 
 ---
 

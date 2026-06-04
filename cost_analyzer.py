@@ -2,7 +2,7 @@
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from google.cloud import bigquery
 
 # Import the HTML template from standard configuration
@@ -13,23 +13,34 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GCP Cost Analysis Dashboard - {month_formatted}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
         :root {{
-            --bg-color: #0b0f19;
-            --panel-bg: rgba(22, 28, 45, 0.4);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --primary: #6366f1;
-            --primary-glow: rgba(99, 102, 241, 0.15);
-            --accent-green: #10b981;
-            --accent-green-glow: rgba(16, 185, 129, 0.1);
-            --accent-red: #ef4444;
-            --accent-red-glow: rgba(239, 68, 68, 0.1);
-            --text-main: #f3f4f6;
-            --text-muted: #9ca3af;
-            --card-header-bg: rgba(30, 41, 59, 0.7);
+            --bg-color: #f8f9fa;
+            --surface-white: #ffffff;
+            --panel-bg: #ffffff;
+            --surface-container: #f1f3f4;
+            --surface-container-high: #e8eaed;
+            --border-color: #dadce0;
+            --border-strong: #c1c6d6;
+            --primary: #1a73e8;
+            --primary-strong: #1557b0;
+            --primary-glow: rgba(26, 115, 232, 0.10);
+            --accent-green: #1e8e3e;
+            --accent-green-glow: rgba(30, 142, 62, 0.10);
+            --accent-red: #d93025;
+            --accent-red-glow: rgba(217, 48, 37, 0.10);
+            --accent-yellow: #f9ab00;
+            --text-main: #202124;
+            --text-muted: #5f6368;
+            --card-header-bg: #f8f9fa;
+            --shadow-sm: 0 1px 2px rgba(60,64,67,0.08), 0 1px 3px rgba(60,64,67,0.10);
+            --shadow-md: 0 1px 3px rgba(60,64,67,0.12), 0 6px 16px rgba(60,64,67,0.10);
+            --font-head: 'Hanken Grotesk', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
         }}
 
         * {{
@@ -39,16 +50,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         body {{
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: var(--font-body);
             background-color: var(--bg-color);
             color: var(--text-main);
             min-height: 100vh;
-            background-image: 
-                radial-gradient(at 10% 10%, rgba(99, 102, 241, 0.1) 0px, transparent 40%),
-                radial-gradient(at 90% 10%, rgba(16, 185, 129, 0.05) 0px, transparent 40%),
-                radial-gradient(at 50% 90%, rgba(239, 68, 68, 0.05) 0px, transparent 50%);
-            background-attachment: fixed;
+            -webkit-font-smoothing: antialiased;
             padding: 2.5rem;
+            padding-top: calc(56px + 2.5rem);
+            padding-left: calc(240px + 2.5rem);
         }}
 
         .container {{
@@ -56,50 +65,57 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             margin: 0 auto;
         }}
 
+        /* Fixed top navbar (talent-scraper style) */
         header {{
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            height: 56px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2.5rem;
+            padding: 0 1.5rem;
+            background: var(--surface-white);
             border-bottom: 1px solid var(--border-color);
-            padding-bottom: 1.5rem;
         }}
 
         .logo-area {{
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 0.85rem;
         }}
 
         .logo-icon {{
-            background: linear-gradient(135deg, var(--primary), #818cf8);
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
+            background: var(--primary);
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 20px var(--primary-glow);
+            flex-shrink: 0;
         }}
 
         .logo-icon svg {{
             fill: white;
-            width: 24px;
-            height: 24px;
+            width: 20px;
+            height: 20px;
         }}
 
         .title-group h1 {{
-            font-size: 1.75rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #ffffff 60%, #cbd5e1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-family: var(--font-head);
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1.2;
         }}
 
         .title-group p {{
             color: var(--text-muted);
-            font-size: 0.875rem;
-            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            margin-top: 0.05rem;
         }}
 
         .header-controls {{
@@ -109,28 +125,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .refresh-btn {{
-            background: linear-gradient(135deg, var(--primary), #4f46e5);
+            background: var(--primary);
             color: white;
             border: none;
-            padding: 0.65rem 1.25rem;
-            border-radius: 8px;
+            padding: 0.5rem 1.1rem;
+            border-radius: 9999px;
             font-weight: 600;
+            font-size: 0.85rem;
             cursor: pointer;
             font-family: inherit;
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+            box-shadow: var(--shadow-sm);
             transition: all 0.2s ease;
         }}
 
         .refresh-btn:hover {{
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+            background: var(--primary-strong);
+            box-shadow: var(--shadow-md);
         }}
 
         .refresh-btn:active {{
-            transform: translateY(0);
+            transform: translateY(1px);
         }}
 
         .refresh-btn.loading {{
@@ -148,15 +165,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .gcloud-badge {{
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--surface-container);
             border: 1px solid var(--border-color);
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.85rem;
+            color: var(--text-muted);
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
         }}
 
         .badge-dot {{
@@ -164,7 +182,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             height: 8px;
             background-color: var(--accent-green);
             border-radius: 50%;
-            box-shadow: 0 0 10px var(--accent-green);
         }}
 
         /* Metrics Grid */
@@ -177,18 +194,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .metric-card {{
             background: var(--panel-bg);
-            backdrop-filter: blur(16px);
             border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 1.5rem;
             position: relative;
             overflow: hidden;
-            transition: transform 0.3s ease, border-color 0.3s ease;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }}
 
         .metric-card:hover {{
             transform: translateY(-2px);
-            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: var(--shadow-md);
         }}
 
         .metric-card::before {{
@@ -201,7 +218,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .metric-card.net-cost::before {{ background: var(--primary); }}
-        .metric-card.gross-cost::before {{ background: #818cf8; }}
+        .metric-card.gross-cost::before {{ background: #4285f4; }}
         .metric-card.credits::before {{ background: var(--accent-green); }}
 
         .metric-label {{
@@ -213,17 +230,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .metric-val {{
             font-size: 2.25rem;
-            font-weight: 800;
-            font-family: 'JetBrains Mono', monospace;
-            background: #ffffff;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--text-main);
         }}
 
         .metric-val.green {{
-            background: linear-gradient(135deg, #34d399, #059669);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--accent-green);
         }}
 
         .metric-subtext {{
@@ -249,13 +262,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .panel {{
             background: var(--panel-bg);
-            backdrop-filter: blur(16px);
             border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 1.75rem;
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            box-shadow: var(--shadow-sm);
         }}
 
         .panel-header {{
@@ -266,8 +279,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .panel-title {{
+            font-family: var(--font-head);
             font-size: 1.15rem;
             font-weight: 700;
+            color: var(--text-main);
             display: flex;
             align-items: center;
             gap: 0.5rem;
@@ -307,7 +322,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             background-color: var(--card-header-bg);
             padding: 0.85rem 1rem;
             font-weight: 600;
-            color: #cbd5e1;
+            color: var(--text-muted);
             border-bottom: 1px solid var(--border-color);
             position: sticky;
             top: 0;
@@ -317,8 +332,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         td {{
             padding: 0.85rem 1rem;
             border-bottom: 1px solid var(--border-color);
-            color: #cbd5e1;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: var(--text-main);
+            font-family: var(--font-body);
         }}
 
         tr:last-child td {{
@@ -326,21 +341,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         tr:hover td {{
-            background-color: rgba(255, 255, 255, 0.02);
+            background-color: var(--surface-container);
         }}
 
         .num-col {{
             text-align: right;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
         }}
 
         .mono-text {{
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 0.8rem;
         }}
 
         .pct-bar-bg {{
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--surface-container-high);
             width: 100px;
             height: 6px;
             border-radius: 3px;
@@ -365,15 +380,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .pill-primary {{
-            background: rgba(99, 102, 241, 0.15);
-            color: #a5b4fc;
-            border: 1px solid rgba(99, 102, 241, 0.3);
+            background: var(--primary-glow);
+            color: var(--primary);
+            border: 1px solid rgba(26, 115, 232, 0.30);
         }}
 
         .pill-green {{
-            background: rgba(16, 185, 129, 0.15);
-            color: #6ee7b7;
-            border: 1px solid rgba(16, 185, 129, 0.3);
+            background: var(--accent-green-glow);
+            color: var(--accent-green);
+            border: 1px solid rgba(30, 142, 62, 0.30);
         }}
 
         /* Recommendations Panel */
@@ -384,17 +399,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .rec-item {{
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--surface-white);
             border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 1.25rem;
             display: flex;
             gap: 1rem;
-            transition: border-color 0.3s ease;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }}
 
         .rec-item:hover {{
-            border-color: rgba(255, 255, 255, 0.12);
+            border-color: var(--border-strong);
+            box-shadow: var(--shadow-sm);
         }}
 
         .rec-icon-box {{
@@ -410,18 +426,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .rec-icon-box.warning {{
             background: var(--accent-red-glow);
             color: var(--accent-red);
-            border: 1px solid rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(217, 48, 37, 0.20);
         }}
 
         .rec-icon-box.info {{
             background: var(--primary-glow);
             color: var(--primary);
-            border: 1px solid rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(26, 115, 232, 0.20);
         }}
 
         .rec-content h4 {{
+            font-family: var(--font-head);
             font-size: 0.95rem;
             font-weight: 700;
+            color: var(--text-main);
             margin-bottom: 0.25rem;
         }}
 
@@ -436,7 +454,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-size: 0.8rem;
             font-weight: 600;
             color: var(--accent-green);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             background: var(--accent-green-glow);
             padding: 0.15rem 0.5rem;
             border-radius: 4px;
@@ -452,15 +470,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .accordion-item {{
-            background: rgba(255, 255, 255, 0.015);
+            background: var(--surface-white);
             border: 1px solid var(--border-color);
             border-radius: 12px;
             overflow: hidden;
-            transition: border-color 0.3s ease;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }}
 
         .accordion-item:hover {{
-            border-color: rgba(255, 255, 255, 0.1);
+            border-color: var(--border-strong);
+            box-shadow: var(--shadow-sm);
         }}
 
         .accordion-trigger {{
@@ -479,11 +498,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .project-rank {{
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 0.9rem;
             font-weight: 700;
             color: var(--text-muted);
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--surface-container);
             width: 24px;
             height: 24px;
             border-radius: 6px;
@@ -493,8 +512,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .project-info-title {{
+            font-family: var(--font-head);
             font-weight: 700;
             font-size: 1rem;
+            color: var(--text-main);
         }}
 
         .project-info-meta {{
@@ -510,13 +531,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .project-accordion-cost {{
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-weight: 700;
             font-size: 1.1rem;
+            color: var(--text-main);
         }}
 
         .chevron-icon {{
             transition: transform 0.3s ease;
+            color: var(--text-muted);
         }}
 
         .accordion-item.active .chevron-icon {{
@@ -527,7 +550,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease, padding 0.3s ease;
-            background: rgba(0, 0, 0, 0.2);
+            background: var(--surface-container);
             border-top: 1px solid transparent;
         }}
 
@@ -553,6 +576,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             }}
             body {{
                 padding: 1rem;
+                padding-top: calc(56px + 1rem);
+            }}
+            .title-group p {{
+                display: none;
             }}
         }}
 
@@ -573,10 +600,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             background: var(--primary);
             color: white;
         }}
-        
+
         .tab-btn:hover:not(.active) {{
             color: var(--text-main);
-            background: rgba(255, 255, 255, 0.03);
+            background: var(--surface-container);
         }}
 
         .range-btn {{
@@ -593,21 +620,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .range-btn.active-range {{
-            background: rgba(99, 102, 241, 0.15);
-            color: #a5b4fc;
-            border-color: rgba(99, 102, 241, 0.4);
+            background: var(--primary-glow);
+            color: var(--primary);
+            border-color: rgba(26, 115, 232, 0.40);
         }}
 
         .range-btn:hover:not(.active-range) {{
             color: var(--text-main);
-            background: rgba(255, 255, 255, 0.03);
+            background: var(--surface-container);
         }}
 
         .date-filter-wrapper {{
             display: flex;
             align-items: center;
             gap: 0.25rem;
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--surface-container);
             padding: 0.15rem 0.4rem;
             border-radius: 6px;
             border: 1px solid var(--border-color);
@@ -615,23 +642,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .date-filter-wrapper:focus-within {{
-            border-color: rgba(99, 102, 241, 0.4);
-            background: rgba(99, 102, 241, 0.02);
-            box-shadow: 0 0 10px rgba(99, 102, 241, 0.1);
+            border-color: rgba(26, 115, 232, 0.40);
+            background: var(--primary-glow);
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.10);
         }}
 
         .date-filter-input {{
             background: transparent;
             border: none;
             color: var(--text-main);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 0.75rem;
             outline: none;
             cursor: pointer;
         }}
 
         .date-filter-input::-webkit-calendar-picker-indicator {{
-            filter: invert(1);
             opacity: 0.6;
             cursor: pointer;
         }}
@@ -639,6 +665,142 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .date-filter-input::-webkit-calendar-picker-indicator:hover {{
             opacity: 1;
         }}
+
+        /* ===== App shell: sidebar + tabbed views ===== */
+        .sidebar {{
+            position: fixed;
+            top: 56px;
+            left: 0;
+            bottom: 0;
+            width: 240px;
+            background: var(--surface-white);
+            border-right: 1px solid var(--border-color);
+            padding: 1rem 0.75rem;
+            overflow-y: auto;
+            z-index: 90;
+        }}
+        .sidebar-nav {{ display: flex; flex-direction: column; gap: 0.25rem; }}
+        .nav-item {{
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            width: 100%;
+            padding: 0.7rem 1rem;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 0 9999px 9999px 0;
+            transition: background 0.15s ease, color 0.15s ease;
+            text-align: left;
+        }}
+        .nav-item svg {{ flex-shrink: 0; }}
+        .nav-item:hover {{ background: var(--surface-container); color: var(--text-main); }}
+        .nav-item.active {{ background: var(--primary-glow); color: var(--primary); }}
+
+        /* Tab views */
+        .tab-view {{ display: none; }}
+        .tab-view.active {{ display: block; animation: fadeIn 0.2s ease; }}
+        @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(4px); }} to {{ opacity: 1; transform: none; }} }}
+
+        /* Filters */
+        .filter-bar {{ display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }}
+        .filter-select {{
+            background: var(--surface-white);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            padding: 0.45rem 0.75rem;
+            border-radius: 9999px;
+            cursor: pointer;
+            outline: none;
+        }}
+        .filter-select:focus {{ border-color: var(--primary); }}
+        .range-group {{ display: flex; gap: 0.25rem; background: var(--surface-container); padding: 0.2rem; border-radius: 9999px; }}
+        .search-input {{
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: var(--surface-white);
+            border: 1px solid var(--border-color);
+            border-radius: 9999px;
+            padding: 0.4rem 0.85rem;
+            min-width: 220px;
+        }}
+        .search-input:focus-within {{ border-color: var(--primary); }}
+        .search-input input {{ border: none; outline: none; background: transparent; font-family: var(--font-body); font-size: 0.8rem; color: var(--text-main); width: 100%; }}
+
+        /* Period summary band */
+        .summary-band {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }}
+        .summary-card {{
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1.1rem 1.25rem;
+            box-shadow: var(--shadow-sm);
+        }}
+        .summary-label {{ font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 600; }}
+        .summary-value {{ font-family: var(--font-mono); font-size: 1.5rem; font-weight: 700; color: var(--text-main); margin-top: 0.35rem; }}
+        .summary-sub {{ font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem; }}
+
+        /* Tracker stat cards */
+        .tracker-stats {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }}
+        .stat-card {{
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1rem 1.15rem;
+            box-shadow: var(--shadow-sm);
+        }}
+        .stat-card .summary-value {{ font-size: 1.3rem; }}
+        .delta-up {{ color: var(--accent-red); }}
+        .delta-down {{ color: var(--accent-green); }}
+
+        /* Top movers */
+        .movers-list {{ display: flex; flex-direction: column; gap: 0.5rem; }}
+        .mover-row {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.6rem 0.85rem;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 0.85rem;
+        }}
+        .mover-row .mover-name {{ color: var(--text-main); font-weight: 600; }}
+        .mover-delta {{ font-family: var(--font-mono); font-weight: 700; }}
+
+        /* Sidebar -> horizontal bar on small screens */
+        @media (max-width: 900px) {{
+            .sidebar {{
+                top: 56px;
+                width: 100%;
+                bottom: auto;
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 0.4rem 0.5rem;
+            }}
+            .sidebar-nav {{ flex-direction: row; overflow-x: auto; gap: 0.25rem; }}
+            .nav-item {{ border-radius: 9999px; padding: 0.5rem 0.85rem; white-space: nowrap; }}
+            .nav-item span {{ font-size: 0.8rem; }}
+            body {{ padding-left: 1rem; padding-top: calc(56px + 54px + 1rem); }}
+        }}
+
     </style>
 </head>
 <body>
@@ -671,6 +833,57 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </div>
             </div>
         </header>
+
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-view="overview" onclick="switchView('overview')">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                    <span>Overview</span>
+                </button>
+                <button class="nav-item" data-view="tracker" onclick="switchView('tracker')">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+                    <span>Spending Tracker</span>
+                </button>
+                <button class="nav-item" data-view="projects" onclick="switchView('projects')">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                    <span>Projects</span>
+                </button>
+                <button class="nav-item" data-view="services" onclick="switchView('services')">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 13h12v-2H3v2zm0 4h12v-2H3v2zm0-8h12V7H3v2zm14 8h2v-4h2v-2h-2V9h-2v4h-2v2h2v4z"/></svg>
+                    <span>Services &amp; SKUs</span>
+                </button>
+            </nav>
+        </aside>
+
+
+        <section id="view-overview" class="tab-view active">
+        <div class="summary-band">
+            <div class="summary-card">
+                <div class="summary-label">Analyzed period</div>
+                <div class="summary-value" id="sumPeriod">&mdash;</div>
+                <div class="summary-sub" id="sumRange">&mdash;</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Days with spend</div>
+                <div class="summary-value" id="sumDays">&mdash;</div>
+                <div class="summary-sub">in selected month</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Daily average</div>
+                <div class="summary-value" id="sumAvg">&mdash;</div>
+                <div class="summary-sub">net cost / active day</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Projected month-end</div>
+                <div class="summary-value" id="sumProjected">&mdash;</div>
+                <div class="summary-sub" id="sumProjectedSub">run-rate estimate</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">vs previous month</div>
+                <div class="summary-value" id="sumMoM">&mdash;</div>
+                <div class="summary-sub" id="sumMoMSub">net cost change</div>
+            </div>
+        </div>
 
         <!-- Metrics Grid -->
         <div class="metrics-grid">
@@ -773,6 +986,57 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
         </div>
 
+        </section>
+
+        <section id="view-tracker" class="tab-view">
+        <div class="panel" style="margin-bottom: 1.5rem;">
+            <div class="panel-header" style="flex-wrap: wrap; gap: 1rem;">
+                <div class="panel-title">
+                    <svg viewBox="0 0 24 24"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+                    Daily Spending Tracker
+                </div>
+                <div class="filter-bar">
+                    <select class="filter-select" id="trackerProject" onchange="updateTracker()">
+                        <option value="__all__">All projects</option>
+                    </select>
+                    <div class="range-group">
+                        <button class="range-btn" onclick="trackerRange(7, this)">7D</button>
+                        <button class="range-btn" onclick="trackerRange(14, this)">14D</button>
+                        <button class="range-btn" onclick="trackerRange(30, this)">30D</button>
+                        <button class="range-btn active-range" onclick="trackerRange(60, this)">60D</button>
+                    </div>
+                    <div class="date-filter-wrapper">
+                        <input type="date" class="date-filter-input" id="trackerStart" onchange="trackerCustom()">
+                        <span style="color: var(--text-muted); font-size: 0.7rem;">to</span>
+                        <input type="date" class="date-filter-input" id="trackerEnd" onchange="trackerCustom()">
+                    </div>
+                </div>
+            </div>
+            <div style="position: relative; height: 360px;">
+                <canvas id="trackerChart"></canvas>
+            </div>
+        </div>
+
+        <div class="tracker-stats" id="trackerStats"></div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <svg viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
+                    Top Movers &mdash; last 7 days vs prior 7 days
+                </div>
+            </div>
+            <div class="movers-list" id="moversList"></div>
+        </div>
+        </section>
+
+        <section id="view-projects" class="tab-view">
+        <div class="filter-bar" style="margin-bottom: 1.5rem;">
+            <div class="search-input">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--text-muted)"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <input type="text" id="projectSearch" placeholder="Filter projects by name or ID&hellip;" oninput="filterProjects()">
+            </div>
+        </div>
         <!-- Row 3: Project Detail Breakdown (Expandable Accordions) -->
         <div class="panel" style="margin-bottom: 2.5rem;">
             <div class="panel-header">
@@ -788,6 +1052,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
         </div>
 
+        </section>
+
+        <section id="view-services" class="tab-view">
+        <div class="filter-bar" style="margin-bottom: 1.5rem;">
+            <select class="filter-select" id="skuProject" onchange="filterSkuTable()">
+                <option value="__all__">All projects</option>
+            </select>
+            <div class="search-input">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--text-muted)"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <input type="text" id="skuSearch" placeholder="Search service, SKU or project&hellip;" oninput="filterSkuTable()">
+            </div>
+        </div>
         <!-- Row 4: Top 25 SKU Detailed Table -->
         <div class="panel">
             <div class="panel-header">
@@ -813,6 +1089,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </table>
             </div>
         </div>
+        </section>
     </div>
 
     <script>
@@ -848,13 +1125,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     datasets: [{{
                         data: {project_costs_json},
                         backgroundColor: [
-                            '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff',
-                            '#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#ecfdf5',
-                            '#f59e0b', '#fbbf24', '#fcd34d', '#fef3c7', '#fffbeb',
-                            '#ef4444', '#f87171', '#fca5a5', '#fee2e2', '#fef2f2'
+                            '#1a73e8', '#4285f4', '#669df6', '#8ab4f8', '#aecbfa',
+                            '#1e8e3e', '#34a853', '#5bb974', '#81c995', '#a8dab5',
+                            '#f9ab00', '#fbbc04', '#fcc934', '#fdd663', '#fde293',
+                            '#d93025', '#ea4335', '#ee675c', '#f28b82', '#f6aea9'
                         ],
                         borderWidth: 1,
-                        borderColor: '#0b0f19'
+                        borderColor: '#ffffff'
                     }}]
                 }},
                 options: {{
@@ -864,9 +1141,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         legend: {{
                             position: 'right',
                             labels: {{
-                                color: '#9ca3af',
+                                color: '#5f6368',
                                 font: {{
-                                    family: 'Plus Jakarta Sans',
+                                    family: 'Inter',
                                     size: 11
                                 }},
                                 boxWidth: 12,
@@ -885,12 +1162,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     datasets: [{{
                         data: {service_costs_json},
                         backgroundColor: [
-                            '#34d399', '#6366f1', '#fbbf24', '#ef4444', '#a7f3d0',
-                            '#a5b4fc', '#fcd34d', '#fca5a5', '#818cf8', '#10b981',
-                            '#f59e0b', '#059669', '#cbd5e1', '#94a3b8', '#64748b'
+                            '#4285f4', '#34a853', '#fbbc04', '#ea4335', '#1a73e8',
+                            '#1e8e3e', '#f9ab00', '#d93025', '#669df6', '#5bb974',
+                            '#fcc934', '#ee675c', '#80868b', '#9aa0a6', '#5f6368'
                         ],
                         borderWidth: 1,
-                        borderColor: '#0b0f19'
+                        borderColor: '#ffffff'
                     }}]
                 }},
                 options: {{
@@ -900,9 +1177,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         legend: {{
                             position: 'right',
                             labels: {{
-                                color: '#9ca3af',
+                                color: '#5f6368',
                                 font: {{
-                                    family: 'Plus Jakarta Sans',
+                                    family: 'Inter',
                                     size: 11
                                 }},
                                 boxWidth: 12,
@@ -921,10 +1198,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     datasets: [{{
                         label: 'Net Monthly Cost ($)',
                         data: {trend_costs_json},
-                        borderColor: '#6366f1',
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderColor: '#1a73e8',
+                        backgroundColor: 'rgba(26, 115, 232, 0.12)',
                         borderWidth: 3,
-                        pointBackgroundColor: '#6366f1',
+                        pointBackgroundColor: '#1a73e8',
                         pointBorderColor: '#ffffff',
                         pointHoverRadius: 6,
                         fill: true,
@@ -942,21 +1219,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     scales: {{
                         x: {{
                             grid: {{
-                                color: 'rgba(255, 255, 255, 0.05)'
+                                color: 'rgba(60, 64, 67, 0.12)'
                             }},
                             ticks: {{
-                                color: '#9ca3af',
+                                color: '#5f6368',
                                 font: {{
-                                    family: 'Plus Jakarta Sans'
+                                    family: 'Inter'
                                 }}
                             }}
                         }},
                         y: {{
                             grid: {{
-                                color: 'rgba(255, 255, 255, 0.05)'
+                                color: 'rgba(60, 64, 67, 0.12)'
                             }},
                             ticks: {{
-                                color: '#9ca3af',
+                                color: '#5f6368',
                                 font: {{
                                     family: 'JetBrains Mono'
                                 }}
@@ -968,10 +1245,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }});
 
         const dailyChartData = {daily_chart_data_json};
+        const trendLabels = {trend_labels_json};
+        const trendCosts = {trend_costs_json};
+        const netCostTotal = {net_cost};
         let renderedCharts = {{}};
         const chartColors = [
-            '#6366f1', '#10b981', '#fbbf24', '#ef4444', '#a5b4fc',
-            '#34d399', '#f59e0b', '#f87171', '#818cf8', '#6ee7b7'
+            '#4285f4', '#34a853', '#fbbc04', '#ea4335', '#1a73e8',
+            '#1e8e3e', '#f9ab00', '#d93025', '#669df6', '#5bb974'
         ];
 
         function getChartColor(idx, alpha = 1) {{
@@ -1181,7 +1461,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         plugins: {{
                             legend: {{
                                 position: 'top',
-                                labels: {{ color: '#9ca3af', font: {{ family: 'Plus Jakarta Sans', size: 10 }} }}
+                                labels: {{ color: '#5f6368', font: {{ family: 'Inter', size: 10 }} }}
                             }},
                             tooltip: {{
                                 mode: 'index',
@@ -1204,8 +1484,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             }}
                         }},
                         scales: {{
-                            x: {{ grid: {{ color: 'rgba(255, 255, 255, 0.03)' }}, ticks: {{ color: '#9ca3af', font: {{ family: 'Plus Jakarta Sans', size: 9 }} }} }},
-                            y: {{ grid: {{ color: 'rgba(255, 255, 255, 0.03)' }}, ticks: {{ color: '#9ca3af', font: {{ family: 'JetBrains Mono', size: 9 }} }} }}
+                            x: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'Inter', size: 9 }} }} }},
+                            y: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'JetBrains Mono', size: 9 }} }} }}
                         }}
                     }}
                 }});
@@ -1241,7 +1521,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         plugins: {{
                             legend: {{
                                 position: 'top',
-                                labels: {{ color: '#9ca3af', font: {{ family: 'Plus Jakarta Sans', size: 10 }} }}
+                                labels: {{ color: '#5f6368', font: {{ family: 'Inter', size: 10 }} }}
                             }},
                             tooltip: {{
                                 mode: 'index',
@@ -1264,8 +1544,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             }}
                         }},
                         scales: {{
-                            x: {{ grid: {{ color: 'rgba(255, 255, 255, 0.03)' }}, ticks: {{ color: '#9ca3af', font: {{ family: 'Plus Jakarta Sans', size: 9 }} }} }},
-                            y: {{ grid: {{ color: 'rgba(255, 255, 255, 0.03)' }}, ticks: {{ color: '#9ca3af', font: {{ family: 'JetBrains Mono', size: 9 }} }} }}
+                            x: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'Inter', size: 9 }} }} }},
+                            y: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'JetBrains Mono', size: 9 }} }} }}
                         }}
                     }}
                 }});
@@ -1312,6 +1592,286 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 }}
             }}
         }}
+
+        // ===== Tabbed views =====
+        function switchView(view) {{
+            document.querySelectorAll('.tab-view').forEach(function(s) {{ s.classList.remove('active'); }});
+            var target = document.getElementById('view-' + view);
+            if (target) target.classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(function(b) {{
+                b.classList.toggle('active', b.getAttribute('data-view') === view);
+            }});
+            if (view === 'tracker') {{
+                if (!window.__trackerInit) {{ window.__trackerInit = true; initTracker(); }}
+                else if (window.trackerChart) {{ window.trackerChart.resize(); }}
+            }}
+            if (history.replaceState) history.replaceState(null, '', '#' + view);
+            window.scrollTo(0, 0);
+        }}
+
+        // ===== Spending tracker (derived from dailyChartData) =====
+        var trackerFull = null;
+        function trackerProjects() {{ return Object.keys(dailyChartData); }}
+        function trackerDatesAll() {{
+            var keys = trackerProjects();
+            if (!keys.length) return [];
+            return dailyChartData[keys[0]].dates || [];
+        }}
+        function buildTotals(projId) {{
+            var keys = (projId && projId !== '__all__') ? [projId] : trackerProjects();
+            var dates = trackerDatesAll();
+            var totals = new Array(dates.length).fill(0);
+            keys.forEach(function(k) {{
+                var proj = dailyChartData[k];
+                if (!proj || !proj.services) return;
+                proj.services.forEach(function(ds) {{
+                    (ds.data || []).forEach(function(v, i) {{ totals[i] += (v || 0); }});
+                }});
+            }});
+            return {{ dates: dates, totals: totals }};
+        }}
+        function movingAvg(arr, win) {{
+            var out = [];
+            for (var i = 0; i < arr.length; i++) {{
+                var s = 0, c = 0;
+                for (var j = Math.max(0, i - win + 1); j <= i; j++) {{ s += arr[j]; c++; }}
+                out.push(c ? s / c : 0);
+            }}
+            return out;
+        }}
+        function fmtMoney(v) {{
+            return '$' + Number(v).toLocaleString(undefined, {{ minimumFractionDigits: 2, maximumFractionDigits: 2 }});
+        }}
+        function populateProjectSelects() {{
+            var projects = trackerProjects();
+            ['trackerProject', 'skuProject'].forEach(function(id) {{
+                var sel = document.getElementById(id);
+                if (!sel) return;
+                projects.forEach(function(p) {{
+                    var o = document.createElement('option');
+                    o.value = p; o.textContent = p; sel.appendChild(o);
+                }});
+            }});
+        }}
+        function initTracker() {{
+            trackerFull = buildTotals('__all__');
+            var ctx = document.getElementById('trackerChart');
+            if (!ctx || typeof Chart === 'undefined') return;
+            window.trackerChart = new Chart(ctx, {{
+                type: 'line',
+                data: {{
+                    labels: trackerFull.dates,
+                    datasets: [
+                        {{ label: 'Daily net cost', data: trackerFull.totals, borderColor: '#1a73e8',
+                          backgroundColor: 'rgba(26, 115, 232, 0.12)', fill: true, tension: 0.35,
+                          pointRadius: 0, borderWidth: 2 }},
+                        {{ label: '7-day average', data: movingAvg(trackerFull.totals, 7), borderColor: '#f9ab00',
+                          backgroundColor: 'transparent', fill: false, tension: 0.35, pointRadius: 0,
+                          borderWidth: 2, borderDash: [6, 4] }}
+                    ]
+                }},
+                options: {{
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: {{ mode: 'index', intersect: false }},
+                    plugins: {{
+                        legend: {{ labels: {{ color: '#5f6368', font: {{ family: 'Inter', size: 11 }}, usePointStyle: true }} }},
+                        zoom: {{ zoom: {{ drag: {{ enabled: true, backgroundColor: 'rgba(26,115,232,0.15)' }}, mode: 'x',
+                                onZoomComplete: function(c) {{ syncTrackerZoom(c.chart); }} }} }}
+                    }},
+                    scales: {{
+                        x: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'Inter', size: 9 }}, maxTicksLimit: 12 }} }},
+                        y: {{ grid: {{ color: 'rgba(60, 64, 67, 0.10)' }}, ticks: {{ color: '#5f6368', font: {{ family: 'JetBrains Mono', size: 9 }},
+                             callback: function(v) {{ return '$' + Number(v).toLocaleString(); }} }} }}
+                    }}
+                }}
+            }});
+            ctx.addEventListener('dblclick', function() {{ if (window.trackerChart) window.trackerChart.resetZoom(); }});
+            renderTrackerStats(trackerFull.dates, trackerFull.totals);
+            renderTopMovers('__all__');
+        }}
+        function refreshTrackerChart(slice) {{
+            if (!window.trackerChart) return;
+            window.trackerChart.data.labels = slice.dates;
+            window.trackerChart.data.datasets[0].data = slice.totals;
+            window.trackerChart.data.datasets[1].data = movingAvg(slice.totals, 7);
+            window.trackerChart.resetZoom('none');
+            window.trackerChart.update();
+            renderTrackerStats(slice.dates, slice.totals);
+        }}
+        function currentTrackerSlice() {{
+            var all = trackerFull;
+            var s = document.getElementById('trackerStart').value;
+            var e = document.getElementById('trackerEnd').value;
+            if (!s || !e) return all;
+            var d = [], t = [];
+            all.dates.forEach(function(dt, i) {{ if (dt >= s && dt <= e) {{ d.push(dt); t.push(all.totals[i]); }} }});
+            return {{ dates: d, totals: t }};
+        }}
+        function updateTracker() {{
+            var proj = document.getElementById('trackerProject').value;
+            trackerFull = buildTotals(proj);
+            document.getElementById('trackerStart').value = '';
+            document.getElementById('trackerEnd').value = '';
+            document.querySelectorAll('#view-tracker .range-btn').forEach(function(b) {{ b.classList.remove('active-range'); }});
+            refreshTrackerChart(trackerFull);
+            renderTopMovers(proj);
+        }}
+        function trackerRange(days, btn) {{
+            document.querySelectorAll('#view-tracker .range-btn').forEach(function(b) {{ b.classList.remove('active-range'); }});
+            if (btn) btn.classList.add('active-range');
+            var all = trackerFull;
+            var slice = all;
+            if (days && all.dates.length > days) {{
+                slice = {{ dates: all.dates.slice(-days), totals: all.totals.slice(-days) }};
+            }}
+            if (slice.dates.length) {{
+                document.getElementById('trackerStart').value = slice.dates[0];
+                document.getElementById('trackerEnd').value = slice.dates[slice.dates.length - 1];
+            }}
+            refreshTrackerChart(slice);
+        }}
+        function trackerCustom() {{
+            document.querySelectorAll('#view-tracker .range-btn').forEach(function(b) {{ b.classList.remove('active-range'); }});
+            refreshTrackerChart(currentTrackerSlice());
+        }}
+        function syncTrackerZoom(chart) {{
+            var xs = chart.scales.x;
+            var labels = chart.data.labels;
+            var lo = Math.max(0, Math.ceil(xs.min));
+            var hi = Math.min(labels.length - 1, Math.floor(xs.max));
+            if (labels[lo]) document.getElementById('trackerStart').value = labels[lo];
+            if (labels[hi]) document.getElementById('trackerEnd').value = labels[hi];
+        }}
+        function renderTrackerStats(dates, totals) {{
+            var el = document.getElementById('trackerStats');
+            if (!el) return;
+            var sum = totals.reduce(function(a, b) {{ return a + b; }}, 0);
+            var active = totals.filter(function(v) {{ return v > 0; }}).length;
+            var avg = active ? sum / active : 0;
+            var peak = 0, peakIdx = -1;
+            totals.forEach(function(v, i) {{ if (v > peak) {{ peak = v; peakIdx = i; }} }});
+            var peakDate = peakIdx >= 0 ? dates[peakIdx] : '\u2014';
+            var cards = [
+                ['Total (range)', fmtMoney(sum), dates.length + ' days'],
+                ['Daily average', fmtMoney(avg), active + ' active days'],
+                ['Peak day', fmtMoney(peak), peakDate],
+                ['Run-rate / 30d', fmtMoney(avg * 30), 'avg x 30 days']
+            ];
+            el.innerHTML = cards.map(function(c) {{
+                return '<div class="stat-card"><div class="summary-label">' + c[0] + '</div>' +
+                       '<div class="summary-value">' + c[1] + '</div>' +
+                       '<div class="summary-sub">' + c[2] + '</div></div>';
+            }}).join('');
+        }}
+        function renderTopMovers(projId) {{
+            var el = document.getElementById('moversList');
+            if (!el) return;
+            var keys = (projId && projId !== '__all__') ? [projId] : trackerProjects();
+            var agg = {{}};
+            keys.forEach(function(k) {{
+                var proj = dailyChartData[k];
+                if (!proj || !proj.services) return;
+                var n = (proj.dates || []).length;
+                proj.services.forEach(function(ds) {{
+                    var data = ds.data || [];
+                    var recent = 0, prior = 0, i;
+                    for (i = Math.max(0, n - 7); i < n; i++) recent += (data[i] || 0);
+                    for (i = Math.max(0, n - 14); i < n - 7; i++) prior += (data[i] || 0);
+                    if (!agg[ds.label]) agg[ds.label] = {{ recent: 0, prior: 0 }};
+                    agg[ds.label].recent += recent;
+                    agg[ds.label].prior += prior;
+                }});
+            }});
+            var rows = Object.keys(agg).map(function(name) {{
+                return {{ name: name, delta: agg[name].recent - agg[name].prior }};
+            }}).filter(function(r) {{ return Math.abs(r.delta) > 0.005; }});
+            rows.sort(function(a, b) {{ return Math.abs(b.delta) - Math.abs(a.delta); }});
+            var top = rows.slice(0, 6);
+            if (!top.length) {{ el.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem;">Not enough history for movers.</div>'; return; }}
+            el.innerHTML = top.map(function(r) {{
+                var up = r.delta > 0;
+                var cls = up ? 'delta-up' : 'delta-down';
+                var sign = up ? '\u25b2 +' : '\u25bc -';
+                return '<div class="mover-row"><span class="mover-name">' + r.name + '</span>' +
+                       '<span class="mover-delta ' + cls + '">' + sign + fmtMoney(Math.abs(r.delta)).slice(1) + '</span></div>';
+            }}).join('');
+        }}
+
+        // ===== Period summary band (Overview) =====
+        function renderSummaryBand() {{
+            var keys = Object.keys(dailyChartData);
+            if (!keys.length) return;
+            var dates = dailyChartData[keys[0]].dates || [];
+            if (!dates.length) return;
+            var lastDate = dates[dates.length - 1];
+            var ym = lastDate.slice(0, 7);
+            var totals = buildTotals('__all__').totals;
+            var monthSum = 0, activeDays = 0, firstD = null, lastD = null;
+            dates.forEach(function(dt, i) {{
+                if (dt.slice(0, 7) === ym) {{
+                    monthSum += totals[i];
+                    if (totals[i] > 0) {{ activeDays++; if (!firstD) firstD = dt; lastD = dt; }}
+                }}
+            }});
+            var dim = new Date(parseInt(ym.slice(0, 4)), parseInt(ym.slice(5, 7)), 0).getDate();
+            var avg = activeDays ? monthSum / activeDays : 0;
+            var projected = avg * dim;
+            function setT(id, v) {{ var e = document.getElementById(id); if (e) e.textContent = v; }}
+            var monthName = new Date(ym + '-01T00:00:00').toLocaleDateString(undefined, {{ month: 'long', year: 'numeric' }});
+            setT('sumPeriod', monthName);
+            setT('sumRange', (firstD || dates[0]) + '  to  ' + (lastD || lastDate));
+            setT('sumDays', activeDays + ' / ' + dim);
+            setT('sumAvg', fmtMoney(avg));
+            setT('sumProjected', fmtMoney(projected));
+            if (typeof trendCosts !== 'undefined' && trendCosts.length >= 2) {{
+                var cur = trendCosts[trendCosts.length - 1];
+                var prev = trendCosts[trendCosts.length - 2];
+                var e2 = document.getElementById('sumMoM');
+                if (prev > 0 && e2) {{
+                    var pct = ((cur - prev) / prev) * 100;
+                    var up = pct >= 0;
+                    e2.textContent = (up ? '+' : '') + pct.toFixed(1) + '%';
+                    e2.className = 'summary-value ' + (up ? 'delta-up' : 'delta-down');
+                    setT('sumMoMSub', 'vs ' + (trendLabels[trendLabels.length - 2] || 'previous'));
+                }}
+            }}
+            var projSub = document.getElementById('sumProjectedSub');
+            if (projSub && activeDays >= dim) projSub.textContent = 'month complete (actual)';
+        }}
+
+        // ===== Filters =====
+        function filterSkuTable() {{
+            var projSel = document.getElementById('skuProject');
+            var proj = projSel ? projSel.value : '__all__';
+            var sInput = document.getElementById('skuSearch');
+            var q = (sInput ? sInput.value : '').toLowerCase();
+            var rows = document.querySelectorAll('#view-services tbody tr');
+            rows.forEach(function(tr) {{
+                var cells = tr.querySelectorAll('td');
+                var projId = cells.length ? cells[0].textContent.trim() : '';
+                var text = tr.textContent.toLowerCase();
+                var okProj = (proj === '__all__') || (projId === proj);
+                var okText = !q || text.indexOf(q) !== -1;
+                tr.style.display = (okProj && okText) ? '' : 'none';
+            }});
+        }}
+        function filterProjects() {{
+            var sInput = document.getElementById('projectSearch');
+            var q = (sInput ? sInput.value : '').toLowerCase();
+            document.querySelectorAll('#view-projects .accordion-item').forEach(function(item) {{
+                var text = item.textContent.toLowerCase();
+                item.style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+            }});
+        }}
+
+        // ===== Init on load =====
+        document.addEventListener('DOMContentLoaded', function() {{
+            populateProjectSelects();
+            renderSummaryBand();
+            var hash = (location.hash || '').replace('#', '');
+            if (hash && document.getElementById('view-' + hash)) switchView(hash);
+        }});
+
     </script>
 </body>
 </html>
@@ -1378,22 +1938,24 @@ def generate_dashboard_html(user_email="user@example.com"):
     # Configure environment variables
     project_id = os.getenv("GCP_PROJECT", "your-gcp-project-id")
     config_name = os.getenv("GCP_CONFIG_NAME", "default")
-    
+    dataset_name = os.getenv("GCP_DATASET", "billing_exports")
+
     print(f"📍 Billing Project: {project_id}")
     print(f"📍 Config Name: {config_name}")
+    print(f"📍 Billing Dataset: {dataset_name}")
     
     # Initialize BigQuery client
     client = bigquery.Client(project=project_id)
     
     # Run automatic IAM permissions check
-    if not verify_bigquery_access(client, project_id, "billing_exports"):
+    if not verify_bigquery_access(client, project_id, dataset_name):
         raise Exception("Prerequisite check failed. Aborting cost analysis.")
-    
-    # Discover table names in billing_exports dataset
+
+    # Discover table names in the billing export dataset
     tables_query = f"""
-    SELECT table_name 
-    FROM `{project_id}.billing_exports.INFORMATION_SCHEMA.TABLES` 
-    WHERE table_name LIKE 'gcp_billing_export_v1_%' 
+    SELECT table_name
+    FROM `{project_id}.{dataset_name}.INFORMATION_SCHEMA.TABLES`
+    WHERE table_name LIKE 'gcp_billing_export_v1_%'
        OR table_name LIKE 'gcp_billing_export_resource_v1_%'
     """
     tables = run_bq_query(client, tables_query)
@@ -1404,13 +1966,17 @@ def generate_dashboard_html(user_email="user@example.com"):
     for t in tables:
         name = t['table_name']
         if name.startswith('gcp_billing_export_resource_v1_'):
-            resource_table = f"{project_id}.billing_exports.{name}"
+            resource_table = f"{project_id}.{dataset_name}.{name}"
         elif name.startswith('gcp_billing_export_v1_'):
-            standard_table = f"{project_id}.billing_exports.{name}"
-            
+            standard_table = f"{project_id}.{dataset_name}.{name}"
+
+    if not standard_table and not resource_table:
+        raise Exception(f"Error: No billing export tables found in dataset `{project_id}.{dataset_name}`!")
+
     if not standard_table:
-        raise Exception("Error: Standard billing export table not found in dataset `billing_exports`!")
-        
+        print("⚠️ Warning: Standard billing export table not found. Using resource-level table for aggregate queries.")
+        standard_table = resource_table
+
     if not resource_table:
         print("⚠️ Warning: Resource-level billing export table not found. Defaulting to standard table for resources.")
         resource_table = standard_table
@@ -1427,8 +1993,11 @@ def generate_dashboard_html(user_email="user@example.com"):
         parsed_date = datetime.strptime(current_month, "%Y%m")
         current_month_formatted = parsed_date.strftime("%B %Y")
     else:
-        current_month = "202605"
-        current_month_formatted = "May 2026"
+        # No invoice data found: fall back to the previous calendar month.
+        today = datetime.now()
+        parsed_date = (today.replace(day=1) - timedelta(days=1))
+        current_month = parsed_date.strftime("%Y%m")
+        current_month_formatted = parsed_date.strftime("%B %Y")
         
     print(f"📊 Querying billing data for: {current_month_formatted} ({current_month})...")
     
@@ -1787,7 +2356,7 @@ def generate_dashboard_html(user_email="user@example.com"):
                 r_share = (r['net_cost'] / proj_cost * 100) if proj_cost > 0 else 0
                 resources_html += f"""
                 <div style="display: flex; justify-content: space-between; font-size: 0.8rem; padding: 0.2rem 0; font-family: 'JetBrains Mono', monospace;">
-                    <span style="color: #6ee7b7; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 400px;" title="{r['resource_name']}">{r['resource_name'].split('/')[-1]}</span>
+                    <span style="color: var(--accent-green); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 400px;" title="{r['resource_name']}">{r['resource_name'].split('/')[-1]}</span>
                     <span style="color: var(--text-muted);">{r['service_description'].split(' ')[0]}</span>
                     <span>${r['net_cost']:,.2f} ({r_share:.1f}%)</span>
                 </div>
@@ -1825,7 +2394,7 @@ def generate_dashboard_html(user_email="user@example.com"):
                 
                 <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
-                        <b style="font-size: 1rem; color: #cbd5e1; display: flex; align-items: center; gap: 0.5rem;">
+                        <b style="font-size: 1rem; color: var(--text-main); display: flex; align-items: center; gap: 0.5rem;">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="var(--primary)"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
                             Daily Spending Snapshot
                         </b>
