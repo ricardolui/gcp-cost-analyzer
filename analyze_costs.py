@@ -1006,6 +1006,53 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         <div class="tracker-stats" id="trackerStats"></div>
 
+        <div class="panel" style="margin-bottom: 1.5rem;">
+            <div class="panel-header" style="flex-wrap: wrap; gap: 1rem;">
+                <div class="panel-title">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--primary)"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0-2-.9-2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/></svg>
+                    Daily Cost &amp; Change Explorer
+                </div>
+                <div class="filter-bar" style="border: none; padding: 0; background: transparent; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Select Date:</span>
+                        <select class="filter-select" id="explorerDate" onchange="updateExplorer()"></select>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Group by:</span>
+                        <div class="range-group">
+                            <button class="range-btn active-range" id="btnGroupProduct" onclick="toggleExplorerGroup('product')">Product</button>
+                            <button class="range-btn" id="btnGroupSKU" onclick="toggleExplorerGroup('sku')">SKU</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="filter-bar" style="margin: 0.5rem 1rem 1rem 1.5rem; background: transparent; padding: 0; border: none; gap: 1rem; width: auto; flex-wrap: wrap;">
+                <div class="search-input" style="max-width: 320px; flex: 1;">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--text-muted)"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                    <input type="text" id="explorerSearch" placeholder="Search service or SKU name..." oninput="updateExplorer()">
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.8rem; display: flex; align-items: center; gap: 0.25rem;">
+                    <span>💡 Tip: Sort by <b>Change</b> to instantly find newly started services!</span>
+                </div>
+            </div>
+            
+            <div style="overflow-x: auto; max-height: 400px;">
+                <table class="data-table" id="explorerTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortExplorer('project')" style="cursor: pointer; user-select: none;">Project <span id="sort_icon_project"></span></th>
+                            <th onclick="sortExplorer('name')" style="cursor: pointer; user-select: none;">Product / SKU <span id="sort_icon_name"></span></th>
+                            <th class="num-col" onclick="sortExplorer('cost')" style="cursor: pointer; user-select: none; text-align: right;">Cost <span id="sort_icon_cost"></span></th>
+                            <th class="num-col" onclick="sortExplorer('prior')" style="cursor: pointer; user-select: none; text-align: right;">Prior Day <span id="sort_icon_prior"></span></th>
+                            <th class="num-col" onclick="sortExplorer('delta')" style="cursor: pointer; user-select: none; text-align: right;">Change ($) <span id="sort_icon_delta"></span></th>
+                            <th class="num-col" onclick="sortExplorer('pct')" style="cursor: pointer; user-select: none; text-align: right;">Change (%) <span id="sort_icon_pct"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="explorerBody"></tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="panel">
             <div class="panel-header">
                 <div class="panel-title">
@@ -1210,6 +1257,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }});
 
         const dailyChartData = {daily_chart_data_json};
+        const dailyServiceMap = {daily_service_map_json};
+        const dailySkuMap = {daily_sku_map_json};
         const trendLabels = {trend_labels_json};
         const trendCosts = {trend_costs_json};
         const netCostTotal = {net_cost};
@@ -1653,6 +1702,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             ctx.addEventListener('dblclick', function() {{ if (window.trackerChart) window.trackerChart.resetZoom(); }});
             renderTrackerStats(trackerFull.dates, trackerFull.totals);
             renderTopMovers('__all__');
+            initExplorer();
         }}
         function refreshTrackerChart(slice) {{
             if (!window.trackerChart) return;
@@ -1680,6 +1730,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             document.querySelectorAll('#view-tracker .range-btn').forEach(function(b) {{ b.classList.remove('active-range'); }});
             refreshTrackerChart(trackerFull);
             renderTopMovers(proj);
+            updateExplorer();
         }}
         function trackerRange(days, btn) {{
             document.querySelectorAll('#view-tracker .range-btn').forEach(function(b) {{ b.classList.remove('active-range'); }});
@@ -1760,6 +1811,164 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 return '<div class="mover-row"><span class="mover-name">' + r.name + '</span>' +
                        '<span class="mover-delta ' + cls + '">' + sign + fmtMoney(Math.abs(r.delta)).slice(1) + '</span></div>';
             }}).join('');
+        }}
+
+        var currentExplorerGroup = 'product';
+        var currentSortKey = 'delta';
+        var currentSortDir = 'desc';
+
+        function initExplorer() {{
+            var dateSelect = document.getElementById('explorerDate');
+            if (!dateSelect) return;
+            dateSelect.innerHTML = '';
+            var dates = (trackerFull && trackerFull.dates) ? trackerFull.dates.slice().reverse() : [];
+            dates.forEach(function(dt) {{
+                var o = document.createElement('option');
+                o.value = dt;
+                o.textContent = dt;
+                dateSelect.appendChild(o);
+            }});
+            updateExplorer();
+        }}
+
+        function updateExplorer() {{
+            var dateSelect = document.getElementById('explorerDate');
+            if (!dateSelect) return;
+            var selectedDate = dateSelect.value;
+            var dates = (trackerFull && trackerFull.dates) ? trackerFull.dates.slice().reverse() : [];
+            if (!selectedDate && dates.length) {{
+                selectedDate = dates[0];
+            }}
+            if (!selectedDate) return;
+
+            var datesAsc = (trackerFull && trackerFull.dates) ? trackerFull.dates : [];
+            var dateIdx = datesAsc.indexOf(selectedDate);
+            var priorDate = (dateIdx > 0) ? datesAsc[dateIdx - 1] : null;
+
+            var selectedProject = document.getElementById('trackerProject').value;
+            var searchVal = document.getElementById('explorerSearch').value.toLowerCase();
+
+            var sourceMap = (currentExplorerGroup === 'product') ? dailyServiceMap : dailySkuMap;
+            var items = [];
+
+            for (var pId in sourceMap) {{
+                if (selectedProject !== '__all__' && pId !== selectedProject) continue;
+
+                var descs = sourceMap[pId];
+                for (var desc in descs) {{
+                    if (searchVal && desc.toLowerCase().indexOf(searchVal) === -1) continue;
+
+                    var datesCosts = descs[desc];
+                    var cost = datesCosts[selectedDate] || 0.0;
+                    var priorCost = priorDate ? (datesCosts[priorDate] || 0.0) : 0.0;
+
+                    if (cost > 0.0 || priorCost > 0.0) {{
+                        var delta = cost - priorCost;
+                        var pct = 0.0;
+                        if (priorCost > 0.0) {{
+                            pct = (delta / priorCost) * 100.0;
+                        }} else if (cost > 0.0) {{
+                            pct = 100.0;
+                        }}
+
+                        items.push({{
+                            project: pId,
+                            name: desc,
+                            cost: cost,
+                            prior: priorCost,
+                            delta: delta,
+                            pct: pct
+                        }});
+                    }}
+                }}
+            }}
+
+            items.sort(function(a, b) {{
+                var valA = a[currentSortKey];
+                var valB = b[currentSortKey];
+
+                if (typeof valA === 'string') {{
+                    valA = valA.toLowerCase();
+                    valB = valB.toLowerCase();
+                }}
+
+                if (valA < valB) return (currentSortDir === 'asc') ? -1 : 1;
+                if (valA > valB) return (currentSortDir === 'asc') ? 1 : -1;
+                return 0;
+            }});
+
+            var keys = ['project', 'name', 'cost', 'prior', 'delta', 'pct'];
+            keys.forEach(function(k) {{
+                var iconSpan = document.getElementById('sort_icon_' + k);
+                if (!iconSpan) return;
+                if (k === currentSortKey) {{
+                    iconSpan.innerHTML = (currentSortDir === 'asc') ? ' &uarr;' : ' &darr;';
+                    iconSpan.style.opacity = 1;
+                }} else {{
+                    iconSpan.innerHTML = '';
+                    iconSpan.style.opacity = 0.3;
+                }}
+            }});
+
+            var tbody = document.getElementById('explorerBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            if (items.length === 0) {{
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No spend data found for this selection.</td></tr>';
+                return;
+            }}
+
+            items.forEach(function(item) {{
+                var deltaClass = '';
+                var deltaSign = '';
+                if (item.delta > 0.005) {{
+                    deltaClass = 'delta-up';
+                    deltaSign = '+';
+                }} else if (item.delta < -0.005) {{
+                    deltaClass = 'delta-down';
+                }}
+
+                var pctText = '';
+                if (item.prior === 0.0 && item.cost > 0.0) {{
+                    pctText = 'New';
+                }} else {{
+                    pctText = (item.delta > 0 ? '+' : '') + item.pct.toFixed(1) + '%';
+                }}
+
+                var row = document.createElement('tr');
+                row.innerHTML = '<td><span class="project-badge" style="font-size: 0.75rem; background: rgba(0,0,0,0.05); padding: 0.15rem 0.4rem; border-radius: 4px; border: 1px solid var(--border-color); font-family: var(--font-mono);">' + item.project + '</span></td>' +
+                                '<td style="font-weight: 500; color: var(--text-main); max-width: 400px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="' + item.name + '">' + item.name + '</td>' +
+                                '<td class="num-col" style="font-family: var(--font-mono); text-align: right;">' + fmtMoney(item.cost) + '</td>' +
+                                '<td class="num-col" style="font-family: var(--font-mono); text-align: right; color: var(--text-muted);">' + fmtMoney(item.prior) + '</td>' +
+                                '<td class="num-col ' + deltaClass + '" style="font-family: var(--font-mono); font-weight: 600; text-align: right;">' + deltaSign + fmtMoney(Math.abs(item.delta)) + '</td>' +
+                                '<td class="num-col ' + deltaClass + '" style="font-family: var(--font-mono); text-align: right;">' + pctText + '</td>';
+                tbody.appendChild(row);
+            }});
+        }}
+
+        function toggleExplorerGroup(group) {{
+            currentExplorerGroup = group;
+            var btnProduct = document.getElementById('btnGroupProduct');
+            var btnSku = document.getElementById('btnGroupSKU');
+            if (group === 'product') {{
+                btnProduct.classList.add('active-range');
+                btnSku.classList.remove('active-range');
+            }} else {{
+                btnProduct.classList.remove('active-range');
+                btnSku.classList.add('active-range');
+            }}
+            updateExplorer();
+        }}
+
+        function sortExplorer(key) {{
+            if (currentSortKey === key) {{
+                currentSortDir = (currentSortDir === 'desc') ? 'asc' : 'desc';
+            }} else {{
+                currentSortKey = key;
+                currentSortDir = (key === 'delta' || key === 'cost' || key === 'prior' || key === 'pct') ? 'desc' : 'asc';
+            }}
+            updateExplorer();
         }}
 
         // ===== Period summary band (Overview) =====
@@ -2513,7 +2722,9 @@ def main():
         trend_costs_json=json.dumps(trend_costs),
         sku_table_rows_html="\n".join(sku_table_rows),
         accordion_items_html="\n".join(accordion_items),
-        daily_chart_data_json=json.dumps(daily_chart_payload)
+        daily_chart_data_json=json.dumps(daily_chart_payload),
+        daily_service_map_json=json.dumps(daily_service_map),
+        daily_sku_map_json=json.dumps(daily_sku_map)
     )
     
     # Resolve output directory
