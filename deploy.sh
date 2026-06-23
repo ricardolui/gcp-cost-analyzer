@@ -39,6 +39,7 @@ REGION="${REGION:-${GCP_REGION:-us-central1}}"
 SERVICE_NAME="${SERVICE_NAME:-${GCP_SERVICE_NAME:-gcp-cost-analyzer-app}}"
 RUNTIME_SA_NAME="${RUNTIME_SA_NAME:-cost-analyzer-run}"   # Short name; created in PROJECT_ID
 ENABLE_IAP="${ENABLE_IAP:-true}"                          # true => private + IAP; false => public
+LOAD_BALANCER_IAP="${LOAD_BALANCER_IAP:-false}"            # true => secured via Global LB IAP; false => native Cloud Run IAP
 IAP_MEMBERS="${IAP_MEMBERS:-}"                            # Comma-separated: user:a@b.com,domain:example.com
 MIN_INSTANCES="${MIN_INSTANCES:-0}"
 MAX_INSTANCES="${MAX_INSTANCES:-1}"
@@ -132,9 +133,13 @@ if [[ "${ENABLE_IAP}" == "true" ]]; then
     --member="serviceAccount:${IAP_SA}" \
     --role="roles/run.invoker" --quiet >/dev/null
 
-  echo -e "   Enabling IAP on the service..."
-  gcloud beta run services update "${SERVICE_NAME}" \
-    --region="${REGION}" --project="${PROJECT_ID}" --iap
+  if [[ "${LOAD_BALANCER_IAP}" == "true" ]]; then
+    echo -e "   ℹ️  Secured via Global Load Balancer IAP. Skipping native Cloud Run-level IAP update to prevent token conflict."
+  else
+    echo -e "   Enabling IAP on the service..."
+    gcloud beta run services update "${SERVICE_NAME}" \
+      --region="${REGION}" --project="${PROJECT_ID}" --iap
+  fi
 
   if [[ -n "${IAP_MEMBERS}" ]]; then
     echo -e "   Granting dashboard access to: ${GREEN}${IAP_MEMBERS}${NC}"
