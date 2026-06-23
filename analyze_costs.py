@@ -1822,10 +1822,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             if (!dateSelect) return;
             dateSelect.innerHTML = '';
             var dates = (trackerFull && trackerFull.dates) ? trackerFull.dates.slice().reverse() : [];
-            dates.forEach(function(dt) {{
+            dates.forEach(function(dt, idx) {{
                 var o = document.createElement('option');
                 o.value = dt;
                 o.textContent = dt;
+                if (dates.length > 1 && idx === 1) {{
+                    o.selected = true;
+                }}
                 dateSelect.appendChild(o);
             }});
             updateExplorer();
@@ -1837,7 +1840,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             var selectedDate = dateSelect.value;
             var dates = (trackerFull && trackerFull.dates) ? trackerFull.dates.slice().reverse() : [];
             if (!selectedDate && dates.length) {{
-                selectedDate = dates[0];
+                selectedDate = (dates.length > 1) ? dates[1] : dates[0];
             }}
             if (!selectedDate) return;
 
